@@ -1,0 +1,250 @@
+# Changelog
+
+All notable changes to the PM Requests Report Builder are logged here.
+Timestamps use `YYYY-MM-DD HH:MM:SS` format.
+
+## 1.2
+
+## 1.3
+
+### 2026-11-13 15:00:00
+- XLIDE is no longer needed: the module is synced with `sync_template.ps1`, a
+  plain PowerShell + Excel COM script (remove + import via `VBProject`,
+  rebuild `START HERE`, save). It needs "Trust access to the VBA project object
+  model" once, nothing else.
+  - Idempotent: when the embedded module already matches the `.bas` file it does
+    nothing at all - no backup, no write. That is why backups used to pile up:
+    the old apply step copied the master on every invocation, changed or not.
+  - A backup is taken only when the module actually changes, and only the two
+    newest are kept.
+  - Saves via `SaveAs` to a temp file + file copy, because `Save()` on the master
+    can block on an invisible modal under headless automation.
+- `CreateManagerTabs.bas` moved from `src/` to the project root (the sync script
+  and the docs point there); `src/` is gone.
+- `START HERE` redesigned to match the Pending Pickup builder: narrow gutters,
+  navy title + "HOW IT WORKS" / "GOOD TO KNOW" label bars, four numbered step
+  rows on alternating light fills, "Ready to build this week's report?" prompt,
+  the CTA in a tall row, and a version footer. The logo sits at the right of the
+  title rows.
+- The CTA is now a rounded-rectangle AutoShape (was a form-control button), so
+  the old VML `<x:FmlaMacro>` patching step is obsolete; `SetupReportButton`
+  recreates it fresh every run, so type/style cannot drift.
+- `RebuildStartSheet` is a public entry point so the sync script can rebuild the
+  UI without running a report.
+
+### 2026-11-13 14:45:00
+- Weekly mode finds the prior report itself. With no explicit prior, the builder
+  scans the output folder for `PM Requests *.xlsx`, scores the six newest by
+  name overlap with the current report, and compares against the newest high
+  scorer (a quarter of the names, minimum 5; stops at 90%). The prior-report
+  dialog is gone, so the weekly run is one click; `RunReport` now returns the
+  prior file name as a 6th field and the completion message shows it (or says
+  no prior was found). Explicit `priorPath` (automation/tests) still wins.
+- Report layout rebuilt to match the 2.0.18 work build:
+  - Dashboard: white logo zone + navy title band, meta strip (current / prior /
+    created), six KPI cards (PMs Requested, Prior PMs, Completed, New PMs,
+    Pending Pickups, Prior PMs Still Open), manager table with Completed / New /
+    per-manager Pending Pickup counts, and the three-block Sales Rep grid.
+  - Manager tabs: KPI cards on rows 2-7, table header on row 9, data from row 10,
+    "PMs by Rep" card. New PM rows stay light green + bold.
+- Dashboard logo is placed from `aoti-logo.png` (works in automation, no
+  clipboard) with a clipboard fallback for visible Excel; any existing logo is
+  removed first so re-runs stay idempotent.
+- Fixed four real defects found by the regression run:
+  - `repCounts(idx) = ...` raised 424 "Object required" (Collection items cannot
+    be reassigned); rep tallies now live in a Long array.
+  - The rep-count array parameter was `ByVal`, which VBA rejects for arrays
+    ("Array argument must be ByRef") - now ByRef.
+  - `SortManagersByLastName` was called with a Collection (arrays only) -> type
+    mismatch; the per-manager rep list now keeps first-appearance order.
+  - The error handler read `Err` after cleanup statements, so failures reported
+    `ERROR|0`; it now snapshots number/description/stage on entry.
+- `RunReport` reports a `stage` marker with any failure to localize the step.
+- Project folder pruned: 41 stale backups, the `.bak_button` snapshot, the stale
+  generated report, and the local 2.0.18 `.bas` reference removed; README file
+  inventory updated.
+
+### 2026-11-13 13:55:00
+- The report is weekly, not monthly: banner/title/comments/README updated to
+  "WEEKLY PM REQUEST REPORT" and weekly wording throughout the UI and docs.
+- Company logo added (`aoti-logo-2023.svg` supplied by the user; rasterized to
+  `aoti-logo.png` with Edge headless since the toolchain has no SVG rasterizer):
+  - START HERE: embedded picture (AOTI_Logo, 105x30) at the top-right of the
+    navy banner, shipped inside the .xlsm.
+  - Report Dashboard: logo at the top-right of the title band, copied from the
+    embedded START HERE shape (the end user receives only the template, so the
+    logo must live inside the .xlsm; no external png dependency). Skipped in
+    invisible automation (clipboard copy can crash a hidden instance) - the
+    earlier headless "crash" was actually Excel being closed mid-run, so the
+    skip is a test-environment guard, not a workaround.
+- `aoti-logo.png` is kept as source art only; regression passes
+  (`OK|...|106|18|0`, runs 9/10).
+
+### 2026-11-13 13:50:00
+- Redesigned the START HERE tab (the template's first thing the user sees):
+  navy 20pt banner, tagline, "HOW IT WORKS" 3-step list, light-blue button
+  card with a centered 340x56 bold button, footer with the output filename,
+  gridlines hidden, column grid normalized. `GetOrCreateStartSheet` rebuilds
+  the canvas idempotently on every run, so existing installs upgrade
+  themselves on the next build. The styled layout is already applied to the
+  shipped template (COM restyled + SaveAs swap; VBA save via COM hangs
+  headlessly). Regression after the redesign: `OK|...|106|18|0`.
+
+### 2026-11-13 13:40:00
+- Fixed the START HERE button error "Cannot run the macro": the interactive
+  shell procedure was named `CreateManagerTabs`, the same as its module.
+  Excel's macro engine resolved the name to the module (not a runnable
+  procedure), so the button failed even though `SetupReportButton` and
+  `RunReport` ran fine. Renamed the shell to `BuildManagerTabs` and rewired
+  the button's stored reference (`xl/drawings/vmlDrawing1.vml`) to match.
+  Verified via COM: the procedure now starts (reaches the source-file dialog)
+  instead of erroring immediately. README and this changelog updated.
+
+### 2026-11-13 13:20:00
+- Post-port code review of the module (v1.2, 1202 lines) and fixes:
+  1. Crash risk: `BuildDashboard` indexed the current data array with
+     `nameCol` without checking it was found; a report without a `Name`
+     column + a prior comparison would have raised "subscript out of range".
+     Now guarded (`priorNames.Count > 0 And nameCol > 0`).
+  2. Dashboard with no prior showed a misleading "New PMs: 0" card; it now
+     shows a "Managers" count card instead.
+  3. The status bar kept "Step 1 of 3..." text when the user cancelled the
+     source/prior/folder dialogs; it is now reset on cancel.
+- Output folder preset: the remembered folder in `PM Settings!B2` was the old
+  work path (`C:\Users\Shawnd\OneDrive...\PM Requests`); it is now
+  `C:\Users\smd32\Downloads\PM Project\Reports`. Set by a direct XML edit of
+  the sheet part (Excel's own save of the master hangs in headless COM), with
+  VBA and all sheets verified intact afterwards (opens cleanly in Excel 16.0).
+- Removed orphaned Excel save temp files (`5C553B00`, `E4C73B00`) left by the
+  killed headless sessions.
+- Regression re-run after the fixes: `OK|...|106|18|0` with and without prior.
+
+### 2026-11-13 13:10:00
+- Cleanup after the compare port: removed the stale LibreOffice lock file
+  (`.~lock.AOTIOpsTreatmentPMDatesResults_FAKE.xlsx#`), the superseded
+  `src/CreateManagerTabs_trace.bas` (LO-trace scaffolding), the original tiny
+  sample `AOTIOpsTreatmentPMDatesResults820.xlsx` (replaced by
+  `AOTIOpsTreatmentPMDatesResults_FAKE.xlsx` as the regression input), and the
+  local reference copy `Create_Manager_Tabs_Monthly_v2.0.18.bas` (compare
+  feature is ported and verified; the live 2.0.18 build at work is untouched).
+
+### 2026-11-13 13:03:29
+- Ported the prior-report comparison feature from the 2.0.18 work build into the
+  1.x module (Excel-only runtime):
+  - The interactive shell now asks for the prior PM Requests report after the
+    source export (Cancel = no comparison). `RunReport` gained an optional
+    `priorPath` parameter.
+  - `LoadPriorComparison` reads the prior report read-only: every sheet except
+    `Dashboard` / `Pending Pickup` / `Raw Data` / `START HERE` is a manager tab
+    (Name header found within the first 30 rows, fallback column C); Pending
+    Pickup tab feeds the prior-pending name set. An unreadable prior degrades to
+    "no comparison" instead of failing the build.
+  - Manager tabs: new-PM rows (names absent from the prior report) are light
+    green + bold, overriding the banding (same color as 2.0.18).
+  - Pending Pickup tab: comparison card with Prior / Now / New / Cleared counts.
+  - New `Dashboard` tab (first in the report): KPI cards (Current PMs, Prior PMs,
+    Net Change excluding new PMs, New PMs; Pending Now / Prior / New / Cleared)
+    and a manager table (PMs Requested, Prior PMs, Change, New PMs) with
+    hyperlinks to each manager tab.
+  - `Raw Data` is copied into the finished report as the last tab (2.0.18 layout).
+  - Verified in Excel 16.0 (real COM run, ~1.2 s): no-prior run returns
+    `OK|...|106|18|0` with unchanged formatting; prior run with rows removed from
+    the prior reports 36 new PMs (12 managers x 3), 36 green rows, pending card
+    `Prior: 14 / Now: 18 / New: 4 / Cleared: 0`, dashboard change/new columns
+    correct. Excel-only validation: headless LibreOffice is no longer used.
+
+### 2026-11-13 12:30:00
+- Removed all LibreOffice/UNO scaffolding from the module (headless LO could not
+  open the report workbooks; Excel 16.0 is now available for testing): dropped
+  the Trace/SelfTest/IsExcelHost helpers, `SetStatus` host guard,
+  `FindOpenWorkbook`/open-source reuse, `PathSep`, clipboard helpers, and the
+  `InputBox` fallbacks for the dialogs.
+- Replaced clipboard-based format copying with property-based per-cell
+  `CopyRowFormats` (NumberFormat + font name/size/bold/color) in
+  `FormatManagerSheet` and `LoadSourceIntoRawData` (clipboard hung headless LO
+  and failed under Excel COM automation).
+- `FreezePanes` is now best-effort (`On Error Resume Next`): invisible automation
+  has no window, which raised `1004 Unable to set the FreezePanes property`.
+- Header font: `ApplyReaderFriendlyFormatting` copies font name/size from the
+  first data row, fixing the "Aptos Narrow 11" header carried from the source.
+- Runtime verification in Excel 16.0 via COM: `RunReport` green
+  (`OK|...|106|18|0`, ~1.1 s); output verified with openpyxl (13 sheets, navy
+  header Arial 10, freeze A2, autofilter, red pending text, PMs Needed box,
+  date formats).
+
+## 1.0
+
+### 2026-11-13 11:45:18
+- Second review pass found six issues in the optimized module; all fixed and
+  re-applied to the master (backup in `backups/`, analysis 0 errors / 0
+  warnings, oletools extraction matches the canonical source, workbook opens
+  cleanly; XLIDE review pending in the tree):
+  1. Pending Pickup tab with zero rows now gets the full header styling
+     (borders, navy header, AutoFilter, frozen row) instead of a bare header.
+  2. The master is now saved immediately after a new output folder is chosen,
+     so the remembered folder survives closing without a save prompt.
+  3. Removed the unused `lastSourceCol` parameter from `FormatManagerSheet`.
+  4. PMs Needed box no longer overrides the 34pt header row height (rows 2:3
+     only).
+  5. Freeze-panes is guarded against a missing window (safe under automation).
+  6. Trailing path separators are stripped from output-folder paths
+     (new `NormalizeFolder`; prevents double-separator paths).
+
+### 2026-11-13 11:42:02
+- Applied the optimized module to the master `PM_Requests_Master_Template.xlsm`
+  through the xlide-mcp server code path (pyopenvba; content-token guarded;
+  backups in `backups/`).
+- One fix made during verification: replaced the `sourceWasOpened` flag pattern
+  with `If Not srcWb Is Nothing` so the analyzer can prove the object is set
+  (the old pattern raised a run-time-91 finding).
+- Verified: read-back token matches the canonical source; static analysis
+  reports 0 errors / 0 warnings; oletools extraction matches
+  `src/CreateManagerTabs.bas` exactly; workbook opens cleanly.
+- XLIDE shows the change in its project tree with a before/after diff and
+  pending review (Keep/Revert). Runtime testing in Excel is still pending
+  (no Excel on this machine).
+
+### 2026-11-13 11:38:43
+- Toolchain established for working on the project without Excel on this machine:
+  XLIDE (VS Code extension) for editing the VBA embedded in the `.xlsm` directly,
+  Python/oletools for extraction and verification, openpyxl for report
+  generation and testing, LibreOffice for file-validity checks. The optimized
+  module is applied to the master via XLIDE (open module > replace with
+  `src/CreateManagerTabs.bas` > save), then verified by extracting the embedded
+  module with oletools.
+
+### 2026-11-13 11:36:25
+- Code review of the VBA module completed. Issues found:
+  - **Null crash (error 94):** `CStr()` on empty cells in the classification
+    loop and `FindHeaderColumn` — any blank manager/status cell or blank header
+    cell aborted the whole run.
+  - **Date/number formats lost:** only header-row formats were copied, so date
+    columns rendered as serials (e.g. `46003` instead of `2025-12-12`).
+  - **Inaccurate PM count** in the completion message (counted rows with no
+    manager that appear on no tab).
+  - **Sheet-name collisions:** managers like `A/B` vs `A\B` (both sanitize to
+    `A-B`), or a manager named "Pending Pickup", caused a duplicate-name error.
+  - **`Application.FileDialog`** folder picker is unsupported on macOS Excel
+    (first-run setup would fail there).
+  - Dead code: `FormatOutputSheet` was never called.
+  - Unqualified button `OnAction` (could break after rename/copy).
+  - Mojibake em-dashes (`â€"`) in status-bar strings (ANSI/UTF-8 mismatch).
+- Optimized module v1.0 written to `src/CreateManagerTabs.bas` (canonical source
+  from now on). Fixes: Null-safe `SafeStr` everywhere, full-range/column format
+  copy (dates survive), accurate PM count + skipped-row count in the completion
+  message, `UniqueSheetName` collision handling, macOS folder-path fallback,
+  dead code removed, workbook-qualified `OnAction`, ASCII-only strings.
+- The embedded copy inside `PM_Requests_Master_Template.xlsm` is still the old
+  module — apply the update by importing `src/CreateManagerTabs.bas` (Alt+F11 >
+  remove module > File > Import File), then save.
+
+### 2026-11-13 11:33:34
+- Established project version **1.0** (baseline carried over from the original v2.0.22 distribution; no version bumps planned — changes are tracked here).
+- Overhauled the readme: replaced `README_PM_Requests_v2.0.22.txt` with `README.md` (overview, business rules, setup, monthly workflow, output spec, troubleshooting, architecture notes).
+- Renamed the master workbook: `PM_Requests_Master_Template_v2.0.22_CLEAN.xlsm` → `PM_Requests_Master_Template.xlsm` (no code changes).
+- Added this changelog.
+
+### 2026-11-13 11:31:00
+- Validated the master `.xlsm` package (opens cleanly).
+- Verified the full report pipeline against the sample raw data (`AOTIOpsTreatmentPMDatesResults820.xlsx`, fake data) with a faithful algorithm simulation — all business rules pass (manager tabs sorted by last name, PMs Needed = row count, Pending Pickup tab last in red, frozen headers, filters, banding, unique output filename).
+- Open issue: date columns render as Excel serial numbers (e.g. `46003` instead of `2025-12-12`) in generated reports, because only header-row formats are copied from the source. Fix pending.

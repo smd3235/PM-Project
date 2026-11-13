@@ -1,0 +1,16 @@
+# Build output (reports are generated, not source)
+Reports/*
+!Reports/.gitkeep
+
+# Master workbook backups from sync_template.ps1
+backups/
+
+# Excel temp/lock files
+~$*
+*.tmp
+
+# Local scratch
+*.bak
+*.bak_*
+Thumbs.db
+desktop.ini
