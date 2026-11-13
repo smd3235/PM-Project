@@ -1620,13 +1620,22 @@ Private Sub BuildDashboard(wb As Workbook, ByVal managers As Variant, _
     ' KPI cards.
     AddPolishedCard ws, "A4:B6", "PMs Requested", pmTotal, RGB(221, 235, 247), False, "CURRENT"
     AddPolishedCard ws, "C4:D6", "Prior PMs", priorPMs, RGB(242, 242, 242), False, "PRIOR"
-    completedTotal = pmTotal - newPMs - priorPMs
-    If completedTotal < 0 Then completedTotal = 0
+    If priorPMs > 0 Then
+        completedTotal = priorPMs - (pmTotal - newPMs)
+        If completedTotal < 0 Then completedTotal = 0
+    Else
+        completedTotal = 0
+    End If
     AddPolishedCard ws, "E4:F6", "Completed", completedTotal, RGB(226, 239, 218), False, "SINCE PRIOR"
     AddPolishedCard ws, "G4:H6", "New PMs", newPMs, RGB(226, 239, 218), False, "ADDED"
     AddPolishedCard ws, "I4:J6", "Pending Pickups", curPendingCount, RGB(255, 242, 204), False, "SEPARATE QUEUE"
-    retainedPMs = pmTotal - newPMs
-    If retainedPMs < 0 Then retainedPMs = 0
+    ' Without a prior report there is nothing completed and nothing carried over.
+    If priorPMs > 0 Then
+        retainedPMs = pmTotal - newPMs
+        If retainedPMs < 0 Then retainedPMs = 0
+    Else
+        retainedPMs = 0
+    End If
     AddPolishedCard ws, "K4:L6", "Prior PMs Still Open", retainedPMs, _
                       IIf(retainedPMs = 0, RGB(226, 239, 218), RGB(244, 204, 204)), False, "TARGET = 0"
     If retainedPMs = 0 Then ws.Range("K5:L6").Font.Color = RGB(0, 97, 0) Else ws.Range("K5:L6").Font.Color = RGB(156, 0, 6)

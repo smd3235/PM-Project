@@ -8,6 +8,10 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
 ## 1.3
 
 ### 2026-11-13 15:00:00
+- Dashboard KPI cards no longer show nonsense without a prior report: with no
+  comparison, "Completed" and "Prior PMs Still Open" are 0 instead of the full
+  PM total (they are derived from prior minus retained, which is meaningless at
+  prior = 0).
 - XLIDE is no longer needed: the module is synced with `sync_template.ps1`, a
   plain PowerShell + Excel COM script (remove + import via `VBProject`,
   rebuild `START HERE`, save). It needs "Trust access to the VBA project object
