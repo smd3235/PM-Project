@@ -83,7 +83,7 @@ Public Sub SetupReportButton(Optional ByVal Silent As Boolean = False)
     ws.Shapes(BUTTON_NAME).Delete
     On Error GoTo ButtonFail
 
-    btnWidth = 340
+    btnWidth = 360
     btnHeight = 48
     ' Center on the content area (C:F), shrinking if the columns are narrower.
     If ws.Range("C14:F14").Width - 8 < btnWidth Then btnWidth = ws.Range("C14:F14").Width - 8
@@ -580,13 +580,14 @@ Private Function GetOrCreateStartSheet() As Worksheet
     ws.Cells.UnMerge
     On Error GoTo 0
 
-    ' Gutters + content columns.
+    ' Gutters + content columns. Same geometry as the sibling Pending Pickup
+    ' builder: narrow number gutter in B, wide content in C:E, thin right gutter in F.
     ws.Columns("A").ColumnWidth = 2.6
-    ws.Columns("B").ColumnWidth = 5.6
-    ws.Columns("C").ColumnWidth = 28.6
-    ws.Columns("D").ColumnWidth = 16
-    ws.Columns("E").ColumnWidth = 16
-    ws.Columns("F").ColumnWidth = 2.6
+    ws.Columns("B").ColumnWidth = 5
+    ws.Columns("C").ColumnWidth = 28
+    ws.Columns("D").ColumnWidth = 28
+    ws.Columns("E").ColumnWidth = 28
+    ws.Columns("F").ColumnWidth = 2
 
     ws.Rows(1).RowHeight = 8
     ws.Rows(2).RowHeight = 28
@@ -604,6 +605,10 @@ Private Function GetOrCreateStartSheet() As Worksheet
     ws.Rows("17:19").RowHeight = 20
     ws.Rows(20).RowHeight = 12
     ws.Rows(21).RowHeight = 18
+
+    ' Two-tone rule under the title: navy across the title, gold to the right edge.
+    ws.Range("B4:D4").Interior.Color = RGB(31, 78, 121)
+    ws.Range("E4:F4").Interior.Color = RGB(246, 206, 62)
 
     ' Title (navy, no fill) with the logo zone to its right.
     With ws.Range("B2:D3")
@@ -623,6 +628,7 @@ Private Function GetOrCreateStartSheet() As Worksheet
         .Font.Color = RGB(89, 89, 89)
         .HorizontalAlignment = xlLeft
         .VerticalAlignment = xlCenter
+        .WrapText = True
     End With
 
     ' HOW IT WORKS label bar + numbered steps.
@@ -646,12 +652,15 @@ Private Function GetOrCreateStartSheet() As Worksheet
     With ws.Range("B13:F13")
         .Merge
         .Value = "Ready to build this week's report?"
-        .Font.Italic = True
+        .Font.Italic = False
         .Font.Size = 11
         .Font.Color = RGB(89, 89, 89)
         .HorizontalAlignment = xlCenter
         .VerticalAlignment = xlCenter
     End With
+
+    ' CTA band: the button sits on this light blue strip.
+    ws.Range("B14:F14").Interior.Color = RGB(221, 235, 247)
 
     ' GOOD TO KNOW bar + bullets.
     With ws.Range("B16:F16")
@@ -666,27 +675,13 @@ Private Function GetOrCreateStartSheet() As Worksheet
     End With
     ws.Range("B16").IndentLevel = 1
 
-    With ws.Range("B17:F17")
-        .Merge
-        .Value = "-  One tab per Assigned Sales Manager, plus Pending Pickup and Raw Data."
-    End With
-    With ws.Range("B18:F18")
-        .Merge
-        .Value = "-  Rows with Treatment Status 'Pending Pickup' appear only on Pending Pickup."
-    End With
-    With ws.Range("B19:F19")
-        .Merge
-        .Value = "-  PMs new since the prior report are highlighted green on each manager tab."
-    End With
-    With ws.Range("B17:F19")
-        .Font.Size = 10
-        .Font.Color = RGB(89, 89, 89)
-        .HorizontalAlignment = xlLeft
-    End With
+AddStartBullet ws, 17, "One tab per Assigned Sales Manager, plus the Dashboard and Raw Data."
+    AddStartBullet ws, 18, "Rows still marked 'Pending Pickup' are skipped, so they never reach a manager tab."
+    AddStartBullet ws, 19, "PMs new since the prior week's report are highlighted green on each manager tab."
 
     With ws.Range("B21:F21")
         .Merge
-        .Value = "v1.3  |  PM Requests Report Builder  |  Output: PM Requests YYYY-MM-DD.xlsx"
+        .Value = "v1.4  " & ChrW(8226) & "  PM Requests Report Builder  " & ChrW(8226) & "  Output: PM Requests YYYY-MM-DD.xlsx"
         .Font.Size = 9
         .Font.Color = RGB(191, 191, 191)
         .HorizontalAlignment = xlCenter
@@ -699,6 +694,7 @@ Private Function GetOrCreateStartSheet() As Worksheet
 
     ' Cleaner canvas: hide gridlines on this sheet (best-effort).
     On Error Resume Next
+    ws.Tab.Color = RGB(31, 78, 121)   ' navy tab, matching the sibling builder
     ws.Activate
     ActiveWindow.DisplayGridlines = False
     On Error GoTo 0
@@ -731,6 +727,21 @@ Private Sub AddStartStep(ws As Worksheet, ByVal rowNum As Long, ByVal text As St
 End Sub
 
 
+' One "good to know" bullet row. The glyph is built with ChrW so this module stays
+' ASCII-only and imports identically whatever the codepage of the .bas file is.
+Private Sub AddStartBullet(ws As Worksheet, ByVal rowNum As Long, ByVal text As String)
+    With ws.Range(ws.Cells(rowNum, "B"), ws.Cells(rowNum, "F"))
+        .Merge
+        .Value = ChrW(8226) & "  " & text
+        .Font.Size = 10
+        .Font.Color = RGB(89, 89, 89)
+        .HorizontalAlignment = xlLeft
+        .VerticalAlignment = xlCenter
+    End With
+    ws.Cells(rowNum, "B").IndentLevel = 1
+End Sub
+
+
 ' Places the embedded AOTI_Logo picture at the top-right of the title rows.
 Private Sub PositionStartLogo(ws As Worksheet)
     Dim shp As Shape, logoW As Double, logoH As Double
@@ -741,9 +752,17 @@ Private Sub PositionStartLogo(ws As Worksheet)
     On Error GoTo 0
     If shp Is Nothing Then Exit Sub
 
-    logoW = shp.Width
-    logoH = shp.Height
-    If logoH <= 0 Then logoH = 30
+    ' Match the sibling builder: 150 pt wide, height keeps the picture's own aspect.
+    If shp.Width > 0 Then
+        logoH = shp.Height / shp.Width * 150
+        logoW = 150
+        shp.Width = logoW
+        shp.Height = logoH
+    Else
+        logoW = shp.Width
+        logoH = shp.Height
+    End If
+    If logoH <= 0 Then logoH = 43
 
     rowTop = ws.Range("B2").Top
     rowHeight = ws.Range("B2:B3").Height

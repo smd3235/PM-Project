@@ -266,7 +266,7 @@ and helpers:
 | Member | Role |
 |---|---|
 | `BuildManagerTabs` | Main pipeline: pick source, auto-detect the prior report, load, split, build, save, report. |
-| `SetupReportButton` / `RebuildStartSheet` / `GetOrCreateStartSheet` / `AddStartStep` / `PositionStartLogo` | `START HERE` canvas and the rounded-rectangle CTA button (`RebuildStartSheet` is what `scripts\sync_template.ps1` calls). |
+| `SetupReportButton` / `RebuildStartSheet` / `GetOrCreateStartSheet` / `AddStartStep` / `AddStartBullet` / `PositionStartLogo` | `START HERE` canvas and the rounded-rectangle CTA button (`RebuildStartSheet` is what `scripts\sync_template.ps1` calls). The canvas mirrors the sibling Pending Pickup builder: narrow number gutter, navy label bars, alternating step fills, two-tone rule, light-blue CTA band, `•` bullets, navy tab. |
 | `DetectPriorReport` / `PriorNameOverlap` / `SortPathsNewestFirst` | Weekly mode: finds the previous week's report in the output folder by name overlap. |
 | `LoadPriorComparison` / `FindHeaderRowForSingle` / `PriorNameExists` / `NormalizeName` / `CountDiff` / `PriorMgrCount` | Prior-report comparison: read-only open of the prior report, prior name/manager/pending sets. |
 | `BuildDashboard` / `WriteTableHeader` / `AddPolishedCard` / `AddPolishedTextCard` / `AddDashboardLogo` / `PositionDashboardLogo` | Dashboard summary tab (meta strip, KPI cards, manager table, rep grid, logo). |

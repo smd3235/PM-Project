@@ -3,6 +3,32 @@
 All notable changes to the PM Requests Report Builder are logged here.
 Timestamps use `YYYY-MM-DD HH:MM:SS` format.
 
+## 1.4
+
+### 2026-11-13 23:57:00
+- `START HERE` redesigned to match the sibling Pending Pickup builder, with the
+  PM-specific wording kept:
+  - Column geometry is now the peer's (`B=5, C=28, D=28, E=28, F=2`) instead of
+    `B=5.6, C=28.6, D=16, E=16, F=2.6`, so the sheet has the same width and the
+    number gutter lines up with the step text.
+  - Two-tone rule under the title: navy across `B4:D4`, gold `RGB(246,206,62)` in
+    `E4:F4`. The row was empty before.
+  - `B14:F14` gets the peer's light-blue CTA band `RGB(221,235,247)`, so the button
+    sits on a filled strip.
+  - "Ready to build this week's report?" is no longer italic, matching the peer.
+  - Bullets are now `"•  "` with indent 1 and centred vertically (new
+    `AddStartBullet`), instead of `"-  "` with no indent.
+  - Logo is 150 pt wide (height keeps the aspect, 42.9 pt) instead of 105 x 30.
+  - Button is 360 x 48 instead of 340 x 48.
+  - Subtitle wraps, and the footer is `v1.4  •  PM Requests Report Builder  •  Output: ...`.
+  - The sheet tab is navy `RGB(31,78,121)`.
+  - Bullets are built with `ChrW(8226)` so this module stays ASCII-only and imports
+    identically whatever the codepage of the `.bas` file is (the peer ships a UTF-8
+    bullet literal instead).
+- Fixed stale copy in `GOOD TO KNOW`: it still described a Pending Pickup tab, which
+  the report no longer produces. It now says such rows are skipped, and that one tab
+  per Assigned Sales Manager plus the Dashboard and Raw Data are produced.
+
 ## 1.2
 
 ## 1.3
