@@ -23,7 +23,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
   - Rules: new AGENTS.md section 8 (Borrowing from the sibling project), and a
     `README.md` row for the new script.
 
-### 2026-11-14 00:35:00
+### 2026-11-13 23:35:00
 - Compile gate hardened, and made faster:
   - `-SelfTest` switch: injects a deliberately broken procedure, asserts the gate
     FAILS, verifies the fixture is really in the module (a fixture that was never
@@ -41,7 +41,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
   `.kilocode\`), so moving it would silently delete `/logs` for anyone else, and
   `KILO_CONFIG_DIR` is a machine env var, not something the repo can ship.
 
-### 2026-11-14 00:30:00
+### 2026-11-13 23:30:00
 - Project layout aligned with the sibling Pending Pickup project:
   - Markdown and image assets moved to **`documentation/`** - `README.md`,
     `CHANGELOG.md`, `AGENTS.md`, `aoti-logo.png`, `aoti-logo-2023.svg`. A stub
@@ -57,7 +57,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
     first, then falls back to the workbook root, so the art moves with the docs
     without breaking older folders.
 
-### 2026-11-14 00:20:00
+### 2026-11-13 23:20:00
 - Module renamed: the standard module is now **`PM_Report_Macro`**. VBA module
   identifiers cannot contain spaces (importing a module called `PM Report Macro`
   fails with "Not a legal object name"), so the file is `PM_Report_Macro.bas` -
