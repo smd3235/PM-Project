@@ -5,6 +5,33 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
 
 ## 1.4
 
+### 2026-11-14 01:35:00
+- Four bugs found by reading `PM_Report_Macro.bas` end to end, each confirmed
+  against a real build before and after the fix.
+  - **The log's `prior report:` line always said `newPMs=0`.** It was written
+    before `newPMs` was computed, so every run logged 0 while the SUMMARY line at
+    the end of the same run had the real number (measured on one run:
+    `newPMs=0` in the prior line, `newPMs=36` in the summary). The count is now
+    computed first, and the line reports `newPMs=36` for the same input.
+  - **A second build in one Excel session reused the first run's log.**
+    `gLogPath` was never cleared, so run 2 appended to run 1's file and timed
+    itself from run 1's start. `LogReset` is now the run boundary and `RunReport`
+    opens one file per run (verified: two builds in one session produced
+    `PM_Report_20261114_013109.log` and `..._013113.log`, 4.5 s and 4.2 s).
+  - **The dashboard footnote could overwrite a manager row.** It was written at
+    `repEnd + 2`: below the rep grid, but the rep grid is shorter than the manager
+    table whenever there are more managers than rep rows, and the merge then
+    landed inside the table and wiped a manager row. It is now placed below
+    whichever table is taller (unchanged at row 29 for the 12-manager fixture).
+  - **A missing output folder failed late.** The check ran after the source was
+    read, the rows classified and all 12 tabs built. It now runs first, with
+    `stage = "args"` in the error line.
+  - `BuildManagerTabs` no longer opens the log itself - it wrote its picker lines
+    into the previous run's file. `RunReport` logs the source and the prior on its
+    first line, so nothing is lost.
+- RUN LOG and DASHBOARD section contracts updated for the new invariants; MAP
+  regenerated (`TOC OK: 10 sections, 67 procedures`).
+
 ### 2026-11-14 01:25:00
 - Dashboard and manager-tab layout fixes, from a review of a freshly built
   report (`Reports\PM Requests 2026-11-14 (9).xlsx`, 124 PMs / 12 managers).

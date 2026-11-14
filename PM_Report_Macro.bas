@@ -56,7 +56,7 @@ Option Explicit
 ' Generated and checked by scripts\check-toc.ps1 (add -Fix to rewrite).
 ' Reading order for a change: CORE first, then the section you touch.
 '
-' 10 sections, 66 procedures.
+' 10 sections, 67 procedures.
 ' Public (outside callers): BuildManagerTabs, LogPath, RebuildStartSheet, RunReport,
 '        SetupReportButton
 '
@@ -66,28 +66,28 @@ Option Explicit
 '        SetupReportButton, RebuildStartSheet, BuildManagerTabs
 '   [  260] CORE (host-neutral)
 '        RunReport
-'   [  536] HOST / DIALOG HELPERS
+'   [  546] HOST / DIALOG HELPERS
 '        PickSourceFile, PickOutputFolder, SetStatus
-'   [  581] RUN LOG
-'        LogOpen, LogLine, LogStage, LogPath, FastModeOn
-'   [  676] WORKBOOK / SHEET SETUP
+'   [  591] RUN LOG
+'        LogReset, LogOpen, LogLine, LogStage, LogPath, FastModeOn
+'   [  696] WORKBOOK / SHEET SETUP
 '        GetOrCreateStartSheet, AddStartStep, AddStartBullet, PositionStartLogo,
 '        FindSourceWorksheet, LoadSourceIntoRawData, GetOrCreateRawSheet,
 '        GetOrCreateSettingsSheet, GetRememberedOutputFolder, SaveOutputFolder
-'   [  992] PATH / STATE HELPERS
+'   [ 1012] PATH / STATE HELPERS
 '        FolderExists, NormalizeFolder, GetUniqueOutputPath, RestoreExcelState
-'   [ 1056] DATA / FORMAT HELPERS
+'   [ 1076] DATA / FORMAT HELPERS
 '        BuildOutputArray, GetHeaderArray, CopyRowFormats, SortManagersByLastName, LastNameKey,
 '        FindHeaderRow, FindHeaderColumn, LastUsedRow, LastUsedColumn, SheetExists,
 '        SafeSheetName, SafeStr, FindManager, GetOrCreateOutputSheet, UniqueSheetName
-'   [ 1259] PRIOR REPORT COMPARISON
+'   [ 1279] PRIOR REPORT COMPARISON
 '        DetectPriorReport, PriorNameOverlap, SortPathsNewestFirst, LoadPriorComparison,
 '        IsManagerTab, FindHeaderRowForSingle, NormalizeName, PriorNameExists, CountDiff,
 '        PriorMgrCount
-'   [ 1525] OUTPUT FORMATTING
+'   [ 1545] OUTPUT FORMATTING
 '        FormatManagerSheet, CountInSheet, AddPolishedCard, AddPolishedTextCard, ChangeColor,
 '        ApplyReaderFriendlyFormatting
-'   [ 1855] DASHBOARD
+'   [ 1875] DASHBOARD
 '        BuildDashboard, ColorReportTabs, AddManagerChart, WriteTableHeader,
 '        GetOrCreateDashboardSheet, ResolveLogoPath, AddDashboardLogo, PositionDashboardLogo,
 '        SortByColumnA
@@ -222,7 +222,7 @@ Public Sub BuildManagerTabs()
     outputFolder = GetRememberedOutputFolder(ThisWorkbook)
     If Len(outputFolder) = 0 Or Not FolderExists(outputFolder) Then
         outputFolder = NormalizeFolder(PickOutputFolder())
-        if Len(outputFolder) = 0 Then SetStatus "": Exit Sub
+        If Len(outputFolder) = 0 Then SetStatus "": Exit Sub
         ' Save the master immediately so the remembered folder survives a close
         ' without a save prompt answer.
         SaveOutputFolder ThisWorkbook, outputFolder
@@ -230,8 +230,8 @@ Public Sub BuildManagerTabs()
     End If
 
     SetStatus "Step 2 of 3 - Building the PM Requests report..."
-    LogOpen outputFolder
-    LogLine "user picked source: " & CStr(sourcePath)
+    ' RunReport owns the log (one file per run); logging here would write the
+    ' picker lines into the previous run's file.
     result = RunReport(CStr(sourcePath), outputFolder, priorPath)
 
     resultParts = Split(result, "|")
@@ -306,8 +306,18 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
 
     On Error GoTo Fail
 
+    ' Fail fast on a missing destination: everything below reads the source and
+    ' builds 12 tabs, and a bad folder argument would only surface at SaveAs.
+    stage = "args"
+    If Len(Trim$(outputFolder)) = 0 Then
+        Err.Raise vbObjectError + 2204, , "No output folder was given."
+    End If
+
     Set wb = ThisWorkbook
 
+    ' One log per run: without the reset, a second build in the same Excel session
+    ' appended to the first run's file and reported that run's elapsed time.
+    LogReset
     LogOpen outputFolder
     LogLine "--- RunReport: source=" & sourcePath & "  prior=" & IIf(Len(priorPath) = 0, "(auto)", priorPath)
 
@@ -424,16 +434,19 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
     End If
     priorPMs = 0
     For i = 1 To priorMgrCounts.Count: priorPMs = priorPMs + CLng(priorMgrCounts(i)): Next i
-    LogLine "prior report: " & IIf(Len(priorPath) = 0, "(none)", priorPath) & _
-            "  priorPMs=" & CStr(priorPMs) & "  priorNames=" & CStr(priorNames.Count) & "  newPMs=" & CStr(newPMs)
 
     ' New PMs: names assigned to a manager this week that were not on the prior
-    ' report's manager tabs.
+    ' report's manager tabs. Computed before the log line that reports it - the
+    ' old order printed newPMs=0 on every run, which sent the reader to the
+    ' dashboard for the one number the log claimed to have.
     If priorNames.Count > 0 Then
         For i = 1 To mgrDataNames.Count
             If Not PriorNameExists(priorNames, CStr(mgrDataNames(i))) Then newPMs = newPMs + 1
         Next i
     End If
+
+    LogLine "prior report: " & IIf(Len(priorPath) = 0, "(none)", priorPath) & _
+            "  priorPMs=" & CStr(priorPMs) & "  priorNames=" & CStr(priorNames.Count) & "  newPMs=" & CStr(newPMs)
 
     Set outWb = Workbooks.Add(xlWBATWorksheet)
     firstOutput = True
@@ -465,9 +478,6 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
     pmTotal = 0
     For i = 1 To mgrRows.Count: pmTotal = pmTotal + mgrRows(i).Count: Next i
 
-    If Len(outputFolder) = 0 Then
-        Err.Raise vbObjectError + 2204, , "No output folder was given."
-    End If
     reportDate = Format(Date, "yyyy-mm-dd")
     savePath = GetUniqueOutputPath(outputFolder, "PM Requests " & reportDate & ".xlsx")
 
@@ -587,6 +597,7 @@ End Sub
 '
 '   LogOpen    - opens today's log beside the workbook (never in the report
 '                folder, so /logs always knows where to look).
+'   LogReset   - forgets the current log so the next LogOpen starts a new file.
 '   LogLine    - "yyyy-MM-dd hh:mm:ss  +NNNNms  msg", appended, also Debug.Print.
 '   LogStage   - "[stage] label" breadcrumb used by RunReport's error handler.
 '   LogPath    - Public; the one line the UI and /logs use to name the file.
@@ -598,8 +609,17 @@ End Sub
 '   * gLogPath / gLogPrev / gLogT0 are module-level state and must stay in the
 '     declarations section: a Private declaration between two procedures is not
 '     visible to the rest of the module.
+'   * A log file belongs to exactly one run. LogReset is the run boundary; the
+'     file name carries the run's start time, not the Excel session's.
 '   * Timer rolls over at midnight; LogLine adds 86400 to keep deltas positive.
 '
+
+Private Sub LogReset()
+    gLogPath = ""
+    gLogPrev = 0
+    gLogT0 = 0
+End Sub
+
 
 Private Sub LogOpen(ByVal outputFolder As String)
     Dim fld As String, logDir As String
@@ -1877,10 +1897,10 @@ End Sub
 '   * Six cards, three per row, each four columns wide: A:D, E:H, I:L. The
 '     column widths are chosen so those three groups are equal (46 characters
 '     each), which is what makes the cards the same size.
-'   * The footnote sits at repEnd + 2 and the chart starts at repEnd + 4, so the
-'     chart can never cover the footnote. The chart width is the table width
-'     (columns A:L), not a fixed number: a fixed width overhangs column L and
-'     widens the printed page.
+'   * The footnote sits below whichever table is taller, and the chart starts two
+'     rows under it, so neither can land on top of the other. The chart width is
+'     the table width (columns A:L), not a fixed number: a fixed width overhangs
+'     column L and widens the printed page.
 '   * One typeface (UI_FONT) for the whole sheet; without it the dashboard
 '     inherits Excel's default font and the workbook shows two typefaces.
 '   * The TOTAL row is the sum of the manager rows, so the table has to agree
@@ -1914,6 +1934,7 @@ Private Sub BuildDashboard(wb As Workbook, ByVal managers As Variant, _
     Dim mgrEnd As Long
     Dim hdrRow As Long, cardRow As Long
     Dim totalRow As Long, sumCol As Long
+    Dim footRow As Long
 
     ' Row plan, in one place: two card rows, then the tables. Everything below
     ' the cards is derived from hdrRow so a layout change is one number.
@@ -2170,8 +2191,14 @@ Private Sub BuildDashboard(wb As Workbook, ByVal managers As Variant, _
     ' Chart: PMs per manager, below the tables (keeps the A:L width).
     AddManagerChart ws, hdrRow, mgrEnd, repEnd
 
-    ' Footnote: every comparison column, in one line.
-    With ws.Range(ws.Cells(repEnd + 2, 1), ws.Cells(repEnd + 2, 12))
+    ' Footnote: every comparison column, in one line. It goes below BOTH tables,
+    ' not below the rep grid: with fewer reps than managers the rep grid ends
+    ' first and repEnd + 2 lands inside the manager table, where the merge would
+    ' wipe a manager row.
+    footRow = repEnd
+    If mgrEnd > footRow Then footRow = mgrEnd
+    footRow = footRow + 2
+    With ws.Range(ws.Cells(footRow, 1), ws.Cells(footRow, 12))
         .Merge
         .Value = "Prior = PMs on this manager's tab last week. Completed = prior PMs no longer open. " & _
                  "New = PMs not on last week's report. Still Open = carried over from last week (target 0)."
