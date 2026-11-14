@@ -98,14 +98,17 @@ Pending Pickup rows skipped, 0 skipped-without-manager). Anything else is a bug.
 | `scripts/` | All tooling: PowerShell (`sync_template`, `test-compile`, `run-report`, `build-worker`, `watch-compile-error`, `answer-dialogs`, `audit-peer`) and Python helpers (`make_fake_data`, `make_prior`). New test scripts go here. |
 | `.kilo/command/logs.md` | The `/logs` slash command. Must stay here: Kilo only discovers commands under `.kilo\command\` (or legacy `.kilocode\`), walking up from the working directory. Moving it to `scripts\` silently removes `/logs` for everyone; `KILO_CONFIG_DIR` could redirect discovery but it is a machine env var, not something a repo can ship. |
 | `.kilo/command/audit.md` | The `/audit` slash command: cross-audits the sibling `Pending Pickup Project` for portable scripts, VBA procedures and rules, and the reverse. Read-only; porting is a separate approved task. The same two files exist in the peer so the audit runs from either side. |
-| `documentation/` | All Markdown and image assets: `README.md`, `CHANGELOG.md`, `AGENTS.md`, the logo art. A stub `AGENTS.md` at the root points here so Kilo still loads the rules. |
+| `documentation/` | `AGENTS.md` (rules), `CHANGELOG.md`, `README.md` (pointer to the root README), `screenshots/`, the logo art. A stub `AGENTS.md` at the root points here so Kilo still loads the rules. |
+| `README.md` (root) | The canonical, GitHub-facing project README. GitHub only renders a README at the repository root, so this is the one to edit; `documentation/README.md` just points here. |
 
 ## 7. Documentation
 
 - Update `CHANGELOG.md` with every change, newest entry first, format
   `- **HH:MM:SS** — what changed and why.`
-- Update `README.md` when paths, scripts, or behaviour change.
-- All Markdown and image assets live in documentation/ (plus the root AGENTS.md stub and .kilo/command/*.md, which Kilo must find where it is).
+- Update `README.md` (root) when paths, scripts, or behaviour change, and regenerate
+  `documentation/screenshots/` after any layout change with `scripts\snapshot-report.ps1`.
+- Everything else Markdown stays in `documentation/` (plus the root `AGENTS.md` stub and
+  `.kilo/command/*.md`, which Kilo must find where it is).
 
 ## 8. Borrowing from the sibling project
 

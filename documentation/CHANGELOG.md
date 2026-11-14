@@ -5,6 +5,21 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
 
 ## 1.4
 
+### 2026-11-14 07:15:00
+- Added a root `README.md`, because GitHub only renders a README that sits at the
+  repository root: `documentation/README.md` was invisible on the repository page.
+  The root file is now the canonical project README (contents, quick start, dashboard and
+  manager-tab anatomy, Pending Pickup behaviour, logging, layout, architecture, the
+  mandatory loop, the compile gate, testing, the cross-project audit, troubleshooting).
+  `documentation/README.md` is now a short pointer to it, so there is still one source of
+  truth. AGENTS.md section 6/7 updated to say so.
+- Added `scripts\snapshot-report.ps1`: exports any sheet as a PNG (copy as picture ->
+  throwaway chart -> `Chart.Export`), which captures fills, fonts, merges and shapes the
+  way Excel renders them. Defaults to the newest report in `Reports\`, `-List` prints the
+  sheet inventory.
+- Added `documentation\screenshots\`: `master-start-here.png`, `report-dashboard.png`,
+  `report-alice-fontaine.png`, generated from the current template and the current build.
+
 ### 2026-11-13 23:57:00
 - `START HERE` redesigned to match the sibling Pending Pickup builder, with the
   PM-specific wording kept:
