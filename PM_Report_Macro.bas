@@ -2,7 +2,7 @@ Attribute VB_Name = "PM_Report_Macro"
 Option Explicit
 
 ' ============================================================
-' WEEKLY SALES MANAGER REPORT BUILDER - v1.2 (Excel)
+' WEEKLY SALES MANAGER REPORT BUILDER - v1.4 (Excel)
 '
 ' Host: Excel (Windows/macOS). The workbook is the report
 ' template: the START HERE button runs the weekly build.
@@ -10,23 +10,23 @@ Option Explicit
 ' Structure:
 '   BuildManagerTabs   - interactive shell (dialogs + message).
 '   RunReport          - core pipeline; returns a result string:
-'                        "OK|savePath|managerPms|pending|skipped"
+'                        "OK|savePath|managerPms|skipped|noManager"
 '                        "ERROR|number|description"
 '                        Public so the shell and tests can call it.
 '
 ' One-button weekly workflow:
 '   - Select the current raw-data workbook; no copy/paste.
-'   - Optionally select the prior report to compare against
-'     (Cancel = no comparison); prior tabs are read read-only.
+'   - The prior report is found automatically in the output folder
+'     (Cancel/none = no comparison); prior tabs are read read-only.
 '   - Automatically finds the source worksheet by required headers.
 '   - Validates required headers before processing.
 '   - Null-safe: blank manager/status/header cells are skipped, not fatal.
 '   - Full source formatting (dates, number formats) carried into output.
 '   - Every manager data row counts as a PM request.
-'   - Pending Pickup rows are excluded from manager tabs and PM counts.
+'   - Rows whose Treatment Status is not a PM request are excluded from
+'     manager tabs and from every count (see PENDING_TEXT).
 '   - New PM rows are light green + bold (names absent from prior report).
 '   - Dashboard summary (KPIs + manager table) is the first tab.
-'   - Pending Pickup tab carries a prior/now/new/cleared comparison card.
 '   - Raw Data is copied into the report as the last tab.
 '   - Remembers the output folder in a hidden PM Settings sheet.
 '   - First run asks for an output folder; later runs reuse it.
@@ -35,8 +35,9 @@ Option Explicit
 '   - Keeps the source workbook read-only and closes it without saving.
 '
 ' IMPORTANT BUSINESS RULES:
-'   * Every non-Pending Pickup data row assigned to a manager is a PM request.
-'   * Pending Pickup rows go only to the Pending Pickup tab.
+'   * Every data row assigned to a manager, whose status is a PM request,
+'     is a PM request on that manager's tab.
+'   * Rows excluded by status are counted in the log, not reported.
 '   * PM Needed equals the number of data rows on the manager tab.
 '   * Treatment PM Date is not a PM-needed filter.
 ' ============================================================
@@ -47,6 +48,8 @@ Private Const DASHBOARD_SHEET As String = "Dashboard"
 Private Const MANAGER_HEADER As String = "Assigned Sales Manager"
 Private Const NAME_HEADER As String = "Name"
 Private Const STATUS_HEADER As String = "Treatment Status"
+' Treatment Status value that marks a row as not a PM request. Such rows are
+' excluded from every tab and count, and are only reported in the run log.
 Private Const PENDING_TEXT As String = "Pending Pickup"
 Private Const BUTTON_NAME As String = "btnCreatePMReport"
 Private Const BUTTON_TEXT As String = "CREATE PM REQUEST REPORT"
@@ -171,7 +174,7 @@ Public Sub BuildManagerTabs()
             MsgBox "Done!" & vbCrLf & vbCrLf & _
                    "Created: " & vbCrLf & resultParts(1) & vbCrLf & vbCrLf & _
                    "Manager PM requests: " & resultParts(2) & vbCrLf & _
-                   "Pending Pickup: " & resultParts(3) & vbCrLf & _
+                   "Excluded by status: " & resultParts(3) & vbCrLf & _
                    IIf(CLng(resultParts(4)) > 0, "Skipped rows (no manager, not pending): " & resultParts(4) & vbCrLf, "") & _
                    IIf(UBound(resultParts) >= 5 And Len(resultParts(5)) > 0, "Compared against: " & resultParts(5) & vbCrLf, "No prior report found - comparison skipped." & vbCrLf), vbInformation
         Else
@@ -197,7 +200,7 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
     Dim lastRow As Long, lastCol As Long
     Dim data As Variant, r As Long, i As Long
     Dim manager As String, status As String
-    Dim mgrNames As Collection, mgrRows As Collection, pendingRows As Collection
+    Dim mgrNames As Collection, mgrRows As Collection, excludedRows As Collection
     Dim managers As Variant, outWs As Worksheet
     Dim rowsForManager As Collection, arrOut As Variant
     Dim firstOutput As Boolean, reportDate As String, savePath As String
@@ -262,13 +265,13 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
     lastRow = LastUsedRow(raw)
     lastCol = LastUsedColumn(raw)
 
-    SetStatus "Building manager and Pending Pickup tabs..."
+    SetStatus "Building manager tabs..."
 
     data = raw.Range(raw.Cells(headerRow, 1), raw.Cells(lastRow, lastCol)).Value2
     stage = "data read": LogStage "data read"
     Set mgrNames = New Collection
     Set mgrRows = New Collection
-    Set pendingRows = New Collection
+    Set excludedRows = New Collection
     Set mgrDataNames = New Collection
     Set repNames = New Collection
     ReDim repCounts(1 To 1)
@@ -283,7 +286,7 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
 
         If InStr(1, status, PENDING_TEXT, vbTextCompare) > 0 Then
             ' Not tracked any more: counted, then skipped.
-            pendingRows.Add r
+            excludedRows.Add r
         ElseIf Len(manager) > 0 Then
             idx = FindManager(mgrNames, manager)
             If idx = 0 Then
@@ -314,7 +317,7 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
         End If
     Next r
     stage = "classified": LogStage "classified"
-    LogLine "classified: managers=" & CStr(mgrNames.Count) & "  pending=" & CStr(pendingRows.Count) & _
+    LogLine "classified: managers=" & CStr(mgrNames.Count) & "  pending=" & CStr(excludedRows.Count) & _
             "  skipped(no manager)=" & CStr(skippedRows) & "  reps=" & CStr(repN)
     ' Weekly comparison: with no explicit prior, use the previous week's
     ' report found in the output folder (name overlap). An unreadable prior
@@ -417,12 +420,12 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
     outWb.Close SaveChanges:=False
     Set outWb = Nothing
 
-    RunReport = "OK|" & savePath & "|" & CStr(pmTotal) & "|" & CStr(pendingRows.Count) & "|" & CStr(skippedRows) & "|" & _
+    RunReport = "OK|" & savePath & "|" & CStr(pmTotal) & "|" & CStr(excludedRows.Count) & "|" & CStr(skippedRows) & "|" & _
                 IIf(Len(priorPath) = 0, "", Mid$(priorPath, InStrRev(priorPath, Application.PathSeparator) + 1))
 
     LogLine "SUMMARY: saved=" & savePath & "  pmTotal=" & CStr(pmTotal) & _
             "  managers=" & CStr(mgrNames.Count) & "  newPMs=" & CStr(newPMs) & _
-            "  pending=" & CStr(pendingRows.Count) & "  skipped=" & CStr(skippedRows)
+            "  pending=" & CStr(excludedRows.Count) & "  skipped=" & CStr(skippedRows)
     LogLine "=== RUN OK in " & Format$(Timer - gLogT0, "0.0") & "s"
 
     SetStatus ""
@@ -676,7 +679,7 @@ Private Function GetOrCreateStartSheet() As Worksheet
     ws.Range("B16").IndentLevel = 1
 
 AddStartBullet ws, 17, "One tab per Assigned Sales Manager, plus the Dashboard and Raw Data."
-    AddStartBullet ws, 18, "Rows still marked 'Pending Pickup' are skipped, so they never reach a manager tab."
+    AddStartBullet ws, 18, "Nothing is overwritten: if the dated report exists, a numbered copy is saved beside it."
     AddStartBullet ws, 19, "PMs new since the prior week's report are highlighted green on each manager tab."
 
     With ws.Range("B21:F21")
@@ -1051,7 +1054,7 @@ End Function
 
 
 ' Collision-proof tab naming: managers like "A/B" and "A\B" both sanitize to
-' "A-B"; a manager literally named "Pending Pickup" would clash with that tab.
+' "A-B", and a name matching a reserved sheet name would collide with it.
 Private Function GetOrCreateOutputSheet(wb As Workbook, sheetName As String, ByVal firstOutput As Boolean) As Worksheet
     Dim ws As Worksheet
     If firstOutput And wb.Worksheets.Count = 1 Then
@@ -1079,8 +1082,8 @@ End Function
 
 ' ================== PRIOR REPORT COMPARISON ==================
 ' Reads a prior PM Requests report (2.0.18 layout or this builder):
-' every sheet except Dashboard / Pending Pickup / Raw Data / START HERE
-' is a manager tab; its Name column feeds the prior-name set.
+' every sheet except Dashboard / Raw Data is a manager tab; its Name column
+' feeds the prior-name set.
 
 ' Weekly mode: with no prior report given, the previous week's report is found
 ' automatically in the output folder. Candidates are the saved
@@ -1558,7 +1561,7 @@ End Function
 
 
 ' Reader-friendly formatting for a data table. headerRow = the table's header
-' row (manager tabs use row 9 under the KPI cards; Pending Pickup uses 1).
+' row (manager tabs use row 9 under the KPI cards).
 ' Borders, header style, filter and frozen header. Row banding is left to
 ' FormatManagerSheet, which bands by employee instead of by row.
 Private Sub ApplyReaderFriendlyFormatting(ws As Worksheet, ByVal headerRow As Long, ByVal lastRow As Long, ByVal lastCol As Long)
@@ -1864,7 +1867,7 @@ Private Sub BuildDashboard(wb As Workbook, ByVal managers As Variant, _
     ' Footnote.
     With ws.Range(ws.Cells(repEnd + 2, 1), ws.Cells(repEnd + 2, 12))
         .Merge
-        .Value = "Prior = that row count on the prior report. New = PMs not on the prior report. Rows with Treatment Status 'Pending Pickup' are not tracked."
+        .Value = "Prior = that row count on the prior report. New = PMs not on the prior report."
         .Font.Size = 8
         .Font.Italic = True
         .Font.Color = RGB(128, 128, 128)

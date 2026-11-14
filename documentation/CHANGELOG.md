@@ -5,6 +5,29 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
 
 ## 1.4
 
+### 2026-11-14 00:20:00
+- Cleaned the last of the Pending Pickup feature out of the code and the docs. The
+  feature was removed earlier; what was left was stale copy and vocabulary:
+  - Module header: version bumped to v1.4, result-string contract corrected to
+    `OK|savePath|managerPms|skipped|noManager`, and the workflow/business-rule lists no
+    longer claim a Pending Pickup tab or a prior/now/new/cleared card.
+  - `pendingRows` renamed to `excludedRows`: these rows are excluded, not "pending".
+    `PENDING_TEXT` stays - it is the status value the classifier matches - and now has a
+    comment saying what it means.
+  - Status text "Building manager and Pending Pickup tabs..." -> "Building manager tabs...".
+  - Completion message "Pending Pickup: N" -> "Excluded by status: N".
+  - Comments that still described removed behaviour: the tab-name collision note, the
+    prior-report sheet list, the formatting helper's row-9 note.
+  - Dashboard footnote no longer explains an untracked status; the START HERE bullet about
+    skipped rows became a bullet about never overwriting a dated report.
+  - Log field `pending=`, the `pending skipped` stage label, and the result-string token
+    are unchanged: they are the contract `scripts\run-report.ps1` and `/logs` document, and
+    old logs use them.
+- README: the "What happens to Pending Pickup rows" section is gone. What remains is one
+  data rule under Source file requirements (a row is a PM request when it has a manager and
+  its status does not contain "Pending Pickup"), because that rule decides what the report
+  contains. Screenshots regenerated.
+
 ### 2026-11-14 07:15:00
 - Added a root `README.md`, because GitHub only renders a README that sits at the
   repository root: `documentation/README.md` was invisible on the repository page.

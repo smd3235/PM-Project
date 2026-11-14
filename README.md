@@ -18,7 +18,6 @@ the prior week's report compared automatically.
 - [The weekly run, step by step](#the-weekly-run-step-by-step)
 - [The Dashboard](#the-dashboard)
 - [Manager tabs](#manager-tabs)
-- [What happens to Pending Pickup rows](#what-happens-to-pending-pickup-rows)
 - [Prior-week comparison](#prior-week-comparison)
 - [Source file requirements](#source-file-requirements)
 - [Logging and diagnosing a stuck run](#logging-and-diagnosing-a-stuck-run)
@@ -56,8 +55,8 @@ The generated workbook has three kinds of sheet, in this order:
 | 2..n | **One tab per Sales Manager** | Banner, four KPI cards, a full-width "PMs by Sales Rep" card, and the manager's rows in a filterable, banded table. Sorted by manager **last** name. |
 | n+1 | **Raw Data** | The source export, copied verbatim, as the last tab. |
 
-There is **no Pending Pickup tab** any more. Those rows are classified, counted in the log,
-and excluded from the report - see [below](#what-happens-to-pending-pickup-rows).
+Rows that are not PM requests are classified, counted in the log, and left out of the
+report - see [Source file requirements](#source-file-requirements).
 
 ---
 
@@ -85,7 +84,7 @@ never a support call.
 | 1 | You pick the raw export. | Picking the master workbook itself is rejected with a clear message. |
 | 2 | The prior report is found **automatically** in the remembered output folder (newest report with enough name overlap). Nothing to pick. | No prior report is fine: prior-based cards show 0 and no comparison is done. |
 | 3 | The macro scans the first 30 rows of every sheet for `Assigned Sales Manager` and `Treatment Status`, then loads the whole used range into `Raw Data`. | Missing header -> "Could not find a worksheet containing both required headers". |
-| 4 | Rows are classified: assigned + not Pending Pickup = a PM request, grouped by manager. | No rows -> "The selected raw-data file has no data rows". |
+| 4 | Rows are classified: assigned + a PM-request status = a PM request, grouped by manager. | No rows -> "The selected raw-data file has no data rows". |
 | 5 | Manager tabs are built, sorted by last name, formatted, filtered, frozen. | - |
 | 6 | Dashboard is built and moved to the front; `Raw Data` is copied last; tabs are coloured; the window is maximized on the Dashboard at 90% zoom. | - |
 | 7 | Saved as `PM Requests YYYY-MM-DD.xlsx`; a numbered name `(2)`, `(3)` is used if that file exists. Nothing is ever overwritten. | Folder missing -> you are asked for a replacement. |
@@ -148,22 +147,6 @@ are understood.
 
 ---
 
-## What happens to Pending Pickup rows
-
-`PENDING_TEXT = "Pending Pickup"` is still the classifier, but the report no longer tracks
-those rows:
-
-- They are **excluded** from every manager tab, from manager PM counts, and from the
-  Dashboard.
-- The build log reports how many were skipped (`pending=18` in the summary line, and the
-  `pending skipped` stage).
-- The run's completion message shows the same number, so the count is never lost.
-
-The regression fixture (124 rows) therefore produces **106 PMs across 12 managers, 18
-skipped**.
-
----
-
 ## Prior-week comparison
 
 Comparison is **name-based**, not ID-based:
@@ -189,6 +172,13 @@ the header row can be anywhere in the first 30 rows):
 Every other column is carried into the report as supplied: original order, original values,
 original header and number formats (formats are copied row by row, because `Value2` alone
 loses date and number formats).
+
+One data rule decides what a PM request is: a row counts when **Assigned Sales Manager** is
+non-empty and its **Treatment Status** does not contain `Pending Pickup` (case-insensitive).
+Rows that fail the status test are not PM requests - they are counted in the run log
+(`pending=18` on the test fixture, and the `pending skipped` stage) and left out of every tab,
+KPI card and count. The completion message repeats the number so it is never silently lost.
+The fixture therefore produces **106 PMs across 12 managers** from 124 rows.
 
 ---
 
@@ -311,7 +301,7 @@ Expected result of step 3:
 RESULT=OK|C:\...\Reports\PM Requests 2026-11-13 (11).xlsx|106|18|0|PM Requests 2026-11-13 (10).xlsx
 ```
 
-That is `OK | output path | PMs | Pending Pickup skipped | skipped-without-manager | prior
+That is `OK | output path | PMs | excluded by status | skipped-without-manager | prior
 report`. Anything else is a bug.
 
 Then: read the log, kill any stray `EXCEL` process, and update `documentation/CHANGELOG.md`.
@@ -352,7 +342,7 @@ produced a false pass here.
 | Visual regression | `.\scripts\snapshot-report.ps1` | PNGs in `documentation\screenshots\` |
 
 The fixture is `AOTIOpsTreatmentPMDatesResults_FAKE.xlsx`: 124 rows, 12 managers, 106 active
-PMs, 18 Pending Pickup rows.
+PMs, 18 rows excluded by status.
 
 ---
 
@@ -401,7 +391,7 @@ correctly from either side. The audit never writes to either project.
 - Prior-report auto-detection only looks at `PM Requests *.xlsx` in the remembered output
   folder.
 - macOS has no folder picker: the output path is typed into an `InputBox`.
-- Pending Pickup rows are counted but not reported anywhere in the workbook.
+- Rows excluded by status are counted in the log but not reported in the workbook.
 
 ---
 
