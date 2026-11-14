@@ -95,7 +95,7 @@ manager). Anything else is a bug.
 | `Reports/` | Generated reports — build artifacts, never committed. |
 | `Logs/` | Run logs, watcher log, compile-test log. Safe to delete. |
 | `backups/` | At most two master snapshots. Safe to delete. |
-| `scripts/` | All tooling: PowerShell (`sync_template`, `test-compile`, `run-report`, `build-worker`, `watch-compile-error`, `answer-dialogs`, `audit-peer`) and Python helpers (`make_fake_data`, `make_prior`). New test scripts go here. |
+| `scripts/` | All tooling: PowerShell (`sync_template`, `test-compile`, `run-report`, `build-worker`, `watch-compile-error`, `answer-dialogs`, `audit-peer`, `snapshot-report`, `dump-sheet`) and Python helpers (`make_fake_data`, `make_prior`). New test scripts go here. |
 | `.kilo/command/logs.md` | The `/logs` slash command. Must stay here: Kilo only discovers commands under `.kilo\command\` (or legacy `.kilocode\`), walking up from the working directory. Moving it to `scripts\` silently removes `/logs` for everyone; `KILO_CONFIG_DIR` could redirect discovery but it is a machine env var, not something a repo can ship. |
 | `.kilo/command/audit.md` | The `/audit` slash command: cross-audits the sibling `Pending Pickup Project` for portable scripts, VBA procedures and rules, and the reverse. Read-only; porting is a separate approved task. The same two files exist in the peer so the audit runs from either side. |
 | `documentation/` | `AGENTS.md` (rules), `CHANGELOG.md`, `README.md` (pointer to the root README), `screenshots/`, the logo art. A stub `AGENTS.md` at the root points here so Kilo still loads the rules. |

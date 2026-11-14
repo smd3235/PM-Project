@@ -5,6 +5,15 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
 
 ## 1.4
 
+### 2026-11-14 00:56:00
+- Added `scripts\dump-sheet.ps1`: read-only structural dump of one sheet (merged
+  areas, column widths, row heights, per-cell font/fill/alignment, shape geometry),
+  which is how a layout change gets verified without opening the workbook by hand.
+  It lived outside the repo during the START HERE work; it now belongs to the project
+  like the rest of the tooling. Resolves relative paths itself, since Excel's
+  `Workbooks.Open` uses Excel's own current directory.
+- Documented in `README.md` and `documentation\AGENTS.md` (script lists).
+
 ### 2026-11-14 00:52:00
 - Stale references to the removed Pending Pickup feature cleaned out of the module: the
   three START HERE comments that described the canvas as "mirroring the sibling

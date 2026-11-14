@@ -260,6 +260,7 @@ day.
 | `answer-dialogs.ps1` | Answers the real UI path's dialogs (source picker, output folder, final `MsgBox`) so the button can be exercised unattended. |
 | `audit-peer.ps1` | Read-only cross audit against the sibling project (see below). |
 | `snapshot-report.ps1` | Exports sheets as PNG images (these screenshots) for docs and design comparison. |
+| `dump-sheet.ps1` | Read-only structural dump of one sheet (merges, widths, heights, fonts, fills, shapes) for verifying layouts. |
 | `make_fake_data.py` | Regenerates the synthetic export. |
 | `make_prior.py` | Builds a prior-week report for comparison tests. |
 
