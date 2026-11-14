@@ -95,8 +95,9 @@ Pending Pickup rows skipped, 0 skipped-without-manager). Anything else is a bug.
 | `Reports/` | Generated reports — build artifacts, never committed. |
 | `Logs/` | Run logs, watcher log, compile-test log. Safe to delete. |
 | `backups/` | At most two master snapshots. Safe to delete. |
-| `scripts/` | All tooling: PowerShell (`sync_template`, `test-compile`, `run-report`, `build-worker`, `watch-compile-error`, `answer-dialogs`) and Python helpers (`make_fake_data`, `make_prior`). New test scripts go here. |
+| `scripts/` | All tooling: PowerShell (`sync_template`, `test-compile`, `run-report`, `build-worker`, `watch-compile-error`, `answer-dialogs`, `audit-peer`) and Python helpers (`make_fake_data`, `make_prior`). New test scripts go here. |
 | `.kilo/command/logs.md` | The `/logs` slash command. Must stay here: Kilo only discovers commands under `.kilo\command\` (or legacy `.kilocode\`), walking up from the working directory. Moving it to `scripts\` silently removes `/logs` for everyone; `KILO_CONFIG_DIR` could redirect discovery but it is a machine env var, not something a repo can ship. |
+| `.kilo/command/audit.md` | The `/audit` slash command: cross-audits the sibling `Pending Pickup Project` for portable scripts, VBA procedures and rules, and the reverse. Read-only; porting is a separate approved task. The same two files exist in the peer so the audit runs from either side. |
 | `documentation/` | All Markdown and image assets: `README.md`, `CHANGELOG.md`, `AGENTS.md`, the logo art. A stub `AGENTS.md` at the root points here so Kilo still loads the rules. |
 
 ## 7. Documentation
@@ -106,7 +107,22 @@ Pending Pickup rows skipped, 0 skipped-without-manager). Anything else is a bug.
 - Update `README.md` when paths, scripts, or behaviour change.
 - All Markdown and image assets live in documentation/ (plus the root AGENTS.md stub and .kilo/command/*.md, which Kilo must find where it is).
 
-## 8. Version control
+## 8. Borrowing from the sibling project
+
+`C:\Users\smd32\Downloads\Pending Pickup Project` is a separate report builder with
+the same harness design and different data. `scripts\audit-peer.ps1` (via `/audit`)
+compares the two read-only and reports what each side has that the other does not:
+files, VBA procedure names, script function names, and Markdown sections.
+
+- Use `/audit` before writing a new helper. Something similar often already exists
+  on the other side.
+- Copying is allowed, but the copy is a new file here: adapt its data source, paths,
+  and logging to this project, then run the mandatory loop and update the changelog.
+- Never change the peer project from here, and never let the audit write into it.
+- If a file exists in both projects, treat this project's copy as authoritative for
+  this project and note the divergence in the changelog.
+
+## 9. Version control
 
 - Always commit and push to git after making changes. If the change is
   complete and verified (compile gate + report build), commit it in the same
@@ -121,7 +137,7 @@ Pending Pickup rows skipped, 0 skipped-without-manager). Anything else is a bug.
 - Never commit secrets or keys.
 - After committing, report the commit id and confirm the tree is clean.
 
-## 9. Deployment
+## 10. Deployment
 
 - End users receive only the `.xlsm`. The `.bas`, `scripts\`, fake export, and logs
   are internal.

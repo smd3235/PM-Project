@@ -53,6 +53,7 @@ workbook itself is never modified except for its remembered output-folder settin
 | `scripts\test-compile.ps1` | Compile gate: imports the `.bas` into a copy of the master, triggers **Debug > Compile VBAProject** (compiles every procedure, not just the ones a probe calls), then runs an execution probe. `-SelfTest` proves the detector detects. Prints the exact module, line, and token on failure. |
 | `scripts\watch-compile-error.ps1` | Stands outside Excel and records/dismisses any modal dialog to `Logs\watcher.log` (compile errors, runtime errors, security prompts). |
 | `scripts\answer-dialogs.ps1` | Answers the real UI path's dialogs (source picker, output folder, final MsgBox) so `BuildManagerTabs` can run unattended. |
+| `scripts\audit-peer.ps1` | Read-only cross audit against the sibling `Pending Pickup Project`: which files, VBA procedures, PowerShell/Python functions, and Markdown sections exist on one side only. `-Sections` narrows it, `-Report <path>` saves Markdown. Used by the `/audit` command. |
 | `documentation\AGENTS.md` | Rules for any agent working on this project: sync, compile-test, run, log. |
 | `Logs/` | One run log per build, `PM_Report_yyyyMMdd_hhmmss.log`. Written by the macro. Safe to delete. |
 | `.kilo/command/logs.md` | The `/logs` slash command: shows the run logs and the slowest steps. |

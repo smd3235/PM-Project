@@ -7,6 +7,22 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
 
 ## 1.3
 
+### 2026-11-13 23:45:00
+- Cross-project audit added, read-only, in both directions:
+  - `scripts\audit-peer.ps1` compares this project with the sibling
+    `Pending Pickup Project`: files only one side has, files that differ (with
+    per-file line counts and the functions/sections each side adds), VBA procedure
+    names (shared vs peer-only), PowerShell/Python functions, and Markdown section
+    headings. `-Sections` narrows it to `scripts`, `documentation`, `commands`,
+    `vba`, `rules`; `-Report <path>` saves Markdown; `-SymbolLimit` caps the listing.
+  - The peer is auto-discovered (a sibling directory with a root `*.bas` and a
+    `scripts\` folder); `-PeerPath` overrides it. The same two files exist in the
+    peer, so the audit runs correctly from either side.
+  - `.kilo\command\audit.md` adds `/audit`, which runs the audit and asks for a
+    shortlist of port candidates with effort and risk. It never copies anything.
+  - Rules: new AGENTS.md section 8 (Borrowing from the sibling project), and a
+    `README.md` row for the new script.
+
 ### 2026-11-14 00:35:00
 - Compile gate hardened, and made faster:
   - `-SelfTest` switch: injects a deliberately broken procedure, asserts the gate
