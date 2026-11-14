@@ -551,8 +551,8 @@ End Sub
 ' ====================== WORKBOOK / SHEET SETUP ======================
 
 ' START HERE canvas, rebuilt idempotently on every run (shapes survive
-' Cells.Clear). Layout mirrors the Pending Pickup builder: narrow gutters,
-' navy label bars, numbered step rows, a tall CTA row, and a footer.
+' Cells.Clear). Canvas design: narrow gutters, navy label bars, numbered step
+' rows, a tall CTA row, and a footer.
 Private Function GetOrCreateStartSheet() As Worksheet
     Dim ws As Worksheet
 
@@ -570,8 +570,8 @@ Private Function GetOrCreateStartSheet() As Worksheet
     ws.Cells.UnMerge
     On Error GoTo 0
 
-    ' Gutters + content columns. Same geometry as the sibling Pending Pickup
-    ' builder: narrow number gutter in B, wide content in C:E, thin right gutter in F.
+    ' Gutters + content columns: narrow number gutter in B, wide content in
+    ' C:E, thin right gutter in F.
     ws.Columns("A").ColumnWidth = 2.6
     ws.Columns("B").ColumnWidth = 5
     ws.Columns("C").ColumnWidth = 28
@@ -665,7 +665,7 @@ Private Function GetOrCreateStartSheet() As Worksheet
     End With
     ws.Range("B16").IndentLevel = 1
 
-AddStartBullet ws, 17, "One tab per Assigned Sales Manager, plus the Dashboard and Raw Data."
+    AddStartBullet ws, 17, "One tab per Assigned Sales Manager, plus the Dashboard and Raw Data."
     AddStartBullet ws, 18, "Nothing is overwritten: if the dated report exists, a numbered copy is saved beside it."
     AddStartBullet ws, 19, "PMs new since the prior week's report are highlighted green on each manager tab."
 
@@ -684,7 +684,7 @@ AddStartBullet ws, 17, "One tab per Assigned Sales Manager, plus the Dashboard a
 
     ' Cleaner canvas: hide gridlines on this sheet (best-effort).
     On Error Resume Next
-    ws.Tab.Color = RGB(31, 78, 121)   ' navy tab, matching the sibling builder
+    ws.Tab.Color = RGB(31, 78, 121)   ' navy tab to match the title band
     ws.Activate
     ActiveWindow.DisplayGridlines = False
     On Error GoTo 0

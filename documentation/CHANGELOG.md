@@ -5,6 +5,18 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
 
 ## 1.4
 
+### 2026-11-14 00:52:00
+- Stale references to the removed Pending Pickup feature cleaned out of the module: the
+  three START HERE comments that described the canvas as "mirroring the sibling
+  Pending Pickup builder" now describe the canvas in its own terms, and the tab-colour
+  comment no longer points at the other project. No behaviour change; a stray
+  unindented `AddStartBullet` line was aligned with its neighbours.
+- Measured gate timing, because two older entries quote numbers that no longer hold:
+  the compile gate takes **~8 s** end to end today (Excel start-up + module import
+  dominate; the compile itself is ~1 s and the probe ~2 s), and a full report build is
+  ~4.5 s. The "~2 s instead of ~5 s" and "~5 s" figures predate the probe and the
+  import step and are left in place as history.
+
 ### 2026-11-14 00:50:00
 - Nothing in the project points outside the project folder any more.
   - `scripts\sync_template.ps1` saved the master through `%TEMP%` before swapping it in; it
