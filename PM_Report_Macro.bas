@@ -62,32 +62,32 @@ Option Explicit
 '
 '   #  SECTION (line)                          procedures
 '
-'   [  118] INTERACTIVE ENTRY (button)
+'   [  119] INTERACTIVE ENTRY (button)
 '        SetupReportButton, RebuildStartSheet, BuildManagerTabs
-'   [  259] CORE (host-neutral)
+'   [  260] CORE (host-neutral)
 '        RunReport
-'   [  535] HOST / DIALOG HELPERS
+'   [  536] HOST / DIALOG HELPERS
 '        PickSourceFile, PickOutputFolder, SetStatus
-'   [  580] RUN LOG
+'   [  581] RUN LOG
 '        LogOpen, LogLine, LogStage, LogPath, FastModeOn
-'   [  675] WORKBOOK / SHEET SETUP
+'   [  676] WORKBOOK / SHEET SETUP
 '        GetOrCreateStartSheet, AddStartStep, AddStartBullet, PositionStartLogo,
 '        FindSourceWorksheet, LoadSourceIntoRawData, GetOrCreateRawSheet,
 '        GetOrCreateSettingsSheet, GetRememberedOutputFolder, SaveOutputFolder
-'   [  991] PATH / STATE HELPERS
+'   [  992] PATH / STATE HELPERS
 '        FolderExists, NormalizeFolder, GetUniqueOutputPath, RestoreExcelState
-'   [ 1055] DATA / FORMAT HELPERS
+'   [ 1056] DATA / FORMAT HELPERS
 '        BuildOutputArray, GetHeaderArray, CopyRowFormats, SortManagersByLastName, LastNameKey,
 '        FindHeaderRow, FindHeaderColumn, LastUsedRow, LastUsedColumn, SheetExists,
 '        SafeSheetName, SafeStr, FindManager, GetOrCreateOutputSheet, UniqueSheetName
-'   [ 1258] PRIOR REPORT COMPARISON
+'   [ 1259] PRIOR REPORT COMPARISON
 '        DetectPriorReport, PriorNameOverlap, SortPathsNewestFirst, LoadPriorComparison,
 '        IsManagerTab, FindHeaderRowForSingle, NormalizeName, PriorNameExists, CountDiff,
 '        PriorMgrCount
-'   [ 1524] OUTPUT FORMATTING
+'   [ 1525] OUTPUT FORMATTING
 '        FormatManagerSheet, CountInSheet, AddPolishedCard, AddPolishedTextCard, ChangeColor,
 '        ApplyReaderFriendlyFormatting
-'   [ 1830] DASHBOARD
+'   [ 1855] DASHBOARD
 '        BuildDashboard, ColorReportTabs, AddManagerChart, WriteTableHeader,
 '        GetOrCreateDashboardSheet, ResolveLogoPath, AddDashboardLogo, PositionDashboardLogo,
 '        SortByColumnA
@@ -107,6 +107,7 @@ Private Const START_SHEET As String = "START HERE"
 Private Const LOGO_FILE As String = "aoti-logo.png"
 Private Const LOGO_DIR As String = "documentation"
 Private Const SHEET_COL_WIDTH As Double = 16
+Private Const UI_FONT As String = "Segoe UI"
 Private Const MANAGER_LAST_COL As Long = 12
 
 ' Run-log state (must live in the declarations section, not between procedures).
@@ -828,7 +829,7 @@ Private Function GetOrCreateStartSheet() As Worksheet
         .HorizontalAlignment = xlCenter
     End With
 
-    ws.Range("B2:F21").Font.Name = "Segoe UI"
+    ws.Range("B2:F21").Font.Name = UI_FONT
 
     ' Logo: keep the embedded START HERE picture, top-right of the title row.
     PositionStartLogo ws
@@ -1552,7 +1553,8 @@ Private Sub FormatManagerSheet(ws As Worksheet, ByVal manager As String, _
     Dim priorCount As Long, curCount As Long, newCount As Long, completedCount As Long
     Dim r As Long, isNew As Boolean, bandOn As Boolean
     Dim repNames As Collection
-    Dim repText As String, i As Long, repName As String, prevRep As String
+    Dim repText As String, i As Long, j As Long, repName As String, prevRep As String
+    Dim rNames() As String, rCounts() As Long, tmpC As Long
 
     lastCol = MANAGER_LAST_COL: lastRow = LastUsedRow(ws)
     If lastRow < 1 Then Exit Sub
@@ -1584,6 +1586,7 @@ Private Sub FormatManagerSheet(ws As Worksheet, ByVal manager As String, _
     With ws.Range(ws.Cells(1, 1), ws.Cells(1, lastCol))
         .Merge
         .Value = manager & "  |  PM SUMMARY"
+        .Font.Name = UI_FONT
         .Font.Bold = True
         .Font.Size = 16
         .Font.Color = RGB(255, 255, 255)
@@ -1611,10 +1614,27 @@ Private Sub FormatManagerSheet(ws As Worksheet, ByVal manager As String, _
         Next r
     End If
     If repNames.Count > 0 Then
+        ReDim rNames(1 To repNames.Count)
+        ReDim rCounts(1 To repNames.Count)
+        For i = 1 To repNames.Count
+            rNames(i) = CStr(repNames(i))
+            rCounts(i) = CountInSheet(ws, rNames(i), lastRow)
+        Next i
+        ' Busiest rep first, ties alphabetical: the card reads as a ranking
+        ' instead of "whoever appeared first in the export".
+        For i = 1 To repNames.Count - 1
+            For j = i + 1 To repNames.Count
+                If (rCounts(j) > rCounts(i)) Or _
+                   ((rCounts(j) = rCounts(i)) And (StrComp(rNames(j), rNames(i), vbTextCompare) < 0)) Then
+                    repName = rNames(i): rNames(i) = rNames(j): rNames(j) = repName
+                    tmpC = rCounts(i): rCounts(i) = rCounts(j): rCounts(j) = tmpC
+                End If
+            Next j
+        Next i
         repText = ""
         For i = 1 To repNames.Count
             If Len(repText) > 0 Then repText = repText & "   |   "
-            repText = repText & CStr(repNames(i)) & ": " & CStr(CountInSheet(ws, CStr(repNames(i)), lastRow))
+            repText = repText & rNames(i) & ": " & CStr(rCounts(i))
         Next i
     End If
     AddPolishedTextCard ws, "A5:L7", "PMs BY SALES REP", repText, RGB(247, 249, 251), "WHO IS DOING THEM"
@@ -1704,6 +1724,7 @@ Private Sub AddPolishedCard(ws As Worksheet, ByVal address As String, ByVal labe
     End With
     With hdr
         .HorizontalAlignment = xlCenter: .VerticalAlignment = xlCenter: .WrapText = True
+        .Font.Name = UI_FONT
         .Font.Bold = True: .Font.Size = 9: .Font.Color = RGB(255, 255, 255)
         .Interior.Color = accent
         .Borders(xlEdgeBottom).LineStyle = xlContinuous
@@ -1712,6 +1733,7 @@ Private Sub AddPolishedCard(ws As Worksheet, ByVal address As String, ByVal labe
     End With
     With valBox
         .HorizontalAlignment = xlCenter: .VerticalAlignment = xlCenter: .WrapText = True
+        .Font.Name = UI_FONT
         .Font.Bold = True: .Font.Size = 24: .Font.Color = RGB(31, 45, 61)
         .Interior.Color = fillColor
     End With
@@ -1747,6 +1769,7 @@ Private Sub AddPolishedTextCard(ws As Worksheet, ByVal address As String, ByVal 
     End With
     With hdr
         .HorizontalAlignment = xlCenter: .VerticalAlignment = xlCenter: .WrapText = True
+        .Font.Name = UI_FONT
         .Font.Bold = True: .Font.Size = 9: .Font.Color = RGB(255, 255, 255)
         .Interior.Color = RGB(91, 110, 126)
         .Borders(xlEdgeBottom).LineStyle = xlContinuous
@@ -1755,6 +1778,7 @@ Private Sub AddPolishedTextCard(ws As Worksheet, ByVal address As String, ByVal 
     End With
     With valBox
         .HorizontalAlignment = xlCenter: .VerticalAlignment = xlCenter: .WrapText = True
+        .Font.Name = UI_FONT
         .Font.Bold = False: .Font.Size = 9: .Font.Color = RGB(31, 45, 61)
         .Interior.Color = fillColor
     End With
@@ -1789,6 +1813,7 @@ Private Sub ApplyReaderFriendlyFormatting(ws As Worksheet, ByVal headerRow As Lo
     dataRange.Borders.Weight = xlHairline
     dataRange.VerticalAlignment = xlCenter
     dataRange.WrapText = True
+    dataRange.Font.Name = UI_FONT
 
     ' Strong, easy-to-scan header.
     With ws.Range(ws.Cells(headerRow, 1), ws.Cells(headerRow, lastCol))
@@ -1799,7 +1824,7 @@ Private Sub ApplyReaderFriendlyFormatting(ws As Worksheet, ByVal headerRow As Lo
         .VerticalAlignment = xlCenter
         .WrapText = True
         If lastRow > headerRow Then
-            .Font.Name = ws.Cells(headerRow + 1, 1).Font.Name
+            .Font.Name = UI_FONT
             .Font.Size = ws.Cells(headerRow + 1, 1).Font.Size
         End If
     End With
@@ -1831,12 +1856,13 @@ End Sub
 ' Owns the report's summary sheet: a fixed A:L grid, rebuilt every run.
 '
 ' Weekly summary on a fixed A:L grid: logo + title band, a meta strip,
-' six KPI cards, a manager table with data bars, a two-block sales-rep grid
-' with prior-report counts, and a bar chart of PMs per manager below.
+' six KPI cards (two rows of three), a manager table with data bars and a
+' TOTAL row, a two-block sales-rep grid with prior-report counts, a footnote,
+' and a bar chart of PMs per manager below it.
 ' Prior columns show 0 when no prior report was compared.
 '
 '   BuildDashboard          - the whole sheet (title, meta, cards, tables,
-'                             chart). CORE moves it to index 1 afterwards.
+'                             total row, chart). CORE moves it to index 1.
 '   ColorReportTabs         - navy summary, light blue managers, grey raw data.
 '   AddManagerChart         - clustered column of PMs per manager; deletes any
 '                             previous chart first (the sheet is reused).
@@ -1846,6 +1872,19 @@ End Sub
 '   SortByColumnA           - name order inside the dashboard tables.
 '
 ' Contracts:
+'   * Row plan: cardRow = 4, hdrRow = cardRow + 9 = 13. Everything below the
+'     cards is derived from hdrRow, so a layout change is one number.
+'   * Six cards, three per row, each four columns wide: A:D, E:H, I:L. The
+'     column widths are chosen so those three groups are equal (46 characters
+'     each), which is what makes the cards the same size.
+'   * The footnote sits at repEnd + 2 and the chart starts at repEnd + 4, so the
+'     chart can never cover the footnote. The chart width is the table width
+'     (columns A:L), not a fixed number: a fixed width overhangs column L and
+'     widens the printed page.
+'   * One typeface (UI_FONT) for the whole sheet; without it the dashboard
+'     inherits Excel's default font and the workbook shows two typefaces.
+'   * The TOTAL row is the sum of the manager rows, so the table has to agree
+'     with the PMs card.
 '   * The meta strip names the report and the prior it was compared to; both
 '     come from CORE (savePath and priorPath), so a rename there shows up here.
 '   * Logo lookup order: documentation\aoti-logo.png, then the workbook root,
@@ -1873,6 +1912,13 @@ Private Sub BuildDashboard(wb As Workbook, ByVal managers As Variant, _
     Dim sortNames() As String, sortCounts() As Long, sortPrior() As Long
     Dim tS As String, tC As Long, tP As Long, j As Long
     Dim mgrEnd As Long
+    Dim hdrRow As Long, cardRow As Long
+    Dim totalRow As Long, sumCol As Long
+
+    ' Row plan, in one place: two card rows, then the tables. Everything below
+    ' the cards is derived from hdrRow so a layout change is one number.
+    cardRow = 4
+    hdrRow = cardRow + 9
 
     Set ws = GetOrCreateDashboardSheet(wb)
 
@@ -1918,18 +1964,19 @@ Private Sub BuildDashboard(wb As Workbook, ByVal managers As Variant, _
     End With
     ws.Rows(2).RowHeight = 26
 
-    ' KPI cards.
-    AddPolishedCard ws, "A4:B6", "PMs This Week", pmTotal, RGB(221, 235, 247), False, "TOTAL"
-    AddPolishedCard ws, "C4:D6", "Prior Report", priorPMs, RGB(242, 242, 242), False, "LAST WEEK"
+    ' KPI cards: two rows of three. Each card spans four columns, and the column
+    ' widths below are tuned so A:D, E:H and I:L are the same width - so all six
+    ' cards are identical without disturbing the two tables underneath.
+    AddPolishedCard ws, "A4:D6", "PMs This Week", pmTotal, RGB(221, 235, 247), False, "TOTAL"
+    AddPolishedCard ws, "E4:H6", "Prior Report", priorPMs, RGB(242, 242, 242), False, "LAST WEEK"
     If priorPMs > 0 Then
         completedTotal = priorPMs - (pmTotal - newPMs)
         If completedTotal < 0 Then completedTotal = 0
     Else
         completedTotal = 0
     End If
-    AddPolishedCard ws, "E4:F6", "Completed", completedTotal, RGB(226, 239, 218), False, "SINCE LAST WEEK"
-    AddPolishedCard ws, "G4:H6", "New PMs", newPMs, RGB(226, 239, 218), False, "ADDED THIS WEEK"
-    AddPolishedCard ws, "I4:J6", "Sales Reps", repN, RGB(221, 235, 247), False, "DOING THEM"
+    AddPolishedCard ws, "I4:L6", "Completed", completedTotal, RGB(226, 239, 218), False, "SINCE LAST WEEK"
+
     ' Without a prior report there is nothing carried over.
     If priorPMs > 0 Then
         retainedPMs = pmTotal - newPMs
@@ -1937,15 +1984,18 @@ Private Sub BuildDashboard(wb As Workbook, ByVal managers As Variant, _
     Else
         retainedPMs = 0
     End If
-    AddPolishedCard ws, "K4:L6", "Still Open From Prior", retainedPMs, _
+    AddPolishedCard ws, "A8:D10", "New PMs", newPMs, RGB(226, 239, 218), False, "ADDED THIS WEEK"
+    AddPolishedCard ws, "E8:H10", "Sales Reps", repN, RGB(221, 235, 247), False, "DOING THEM"
+    AddPolishedCard ws, "I8:L10", "Still Open From Prior", retainedPMs, _
                       IIf(retainedPMs = 0, RGB(226, 239, 218), RGB(244, 204, 204)), False, "TARGET: 0"
-    If retainedPMs = 0 Then ws.Range("K5:L6").Font.Color = RGB(0, 97, 0) Else ws.Range("K5:L6").Font.Color = RGB(156, 0, 6)
+    If retainedPMs = 0 Then ws.Range("I9:L10").Font.Color = RGB(0, 97, 0) Else ws.Range("I9:L10").Font.Color = RGB(156, 0, 6)
 
-    ws.Rows(3).RowHeight = 8
-    ws.Rows(7).RowHeight = 16
+    ws.Rows(cardRow - 1).RowHeight = 8
+    ws.Rows(cardRow + 3).RowHeight = 8
+    ws.Rows(cardRow + 7).RowHeight = 8
 
     ' Section labels above the two tables.
-    With ws.Range("A8:F8")
+    With ws.Range(ws.Cells(hdrRow - 1, 1), ws.Cells(hdrRow - 1, 6))
         .Merge
         .Value = "PM REQUESTS BY SALES MANAGER"
         .Font.Bold = True
@@ -1953,7 +2003,7 @@ Private Sub BuildDashboard(wb As Workbook, ByVal managers As Variant, _
         .Font.Color = RGB(31, 78, 121)
         .HorizontalAlignment = xlLeft
     End With
-    With ws.Range("G8:L8")
+    With ws.Range(ws.Cells(hdrRow - 1, 7), ws.Cells(hdrRow - 1, 12))
         .Merge
         .Value = "PMs BY SALES REP"
         .Font.Bold = True
@@ -1963,7 +2013,7 @@ Private Sub BuildDashboard(wb As Workbook, ByVal managers As Variant, _
     End With
 
     ' Table header row.
-    r = 9
+    r = hdrRow
     WriteTableHeader ws, r, 1, Array("Sales Manager", "PMs", "Prior", "Completed", "New", "Still Open")
 
     ' Rep grid: two blocks of three columns (G:I, J:L) with the prior count.
@@ -2069,24 +2119,24 @@ Private Sub BuildDashboard(wb As Workbook, ByVal managers As Variant, _
 
     ' Table styling.
     ws.Rows(mgrEnd).RowHeight = 26
-    If mgrEnd > 9 Then
-        For i = 9 To mgrEnd
+    If mgrEnd > hdrRow Then
+        For i = hdrRow To mgrEnd
             If i Mod 2 = 1 Then ws.Range(ws.Cells(i, 1), ws.Cells(i, 6)).Interior.Color = RGB(247, 249, 251)
         Next i
-        ws.Range(ws.Cells(10, 1), ws.Cells(mgrEnd, 6)).VerticalAlignment = xlCenter
-        With ws.Range(ws.Cells(9, 1), ws.Cells(mgrEnd, 6))
+        ws.Range(ws.Cells(hdrRow + 1, 1), ws.Cells(mgrEnd, 6)).VerticalAlignment = xlCenter
+        With ws.Range(ws.Cells(hdrRow, 1), ws.Cells(mgrEnd, 6))
             .Borders.LineStyle = xlContinuous
             .Borders.Weight = xlThin
         End With
-        For i = 10 To mgrEnd
+        For i = hdrRow + 1 To mgrEnd
             ws.Range(ws.Cells(i, 2), ws.Cells(i, 6)).HorizontalAlignment = xlCenter
         Next i
     End If
 
     ' Data bars on the manager PM column (visual weight, no extra width).
-    If mgrEnd > 10 Then
+    If mgrEnd > hdrRow + 1 Then
         On Error Resume Next
-        With ws.Range(ws.Cells(10, 2), ws.Cells(mgrEnd, 2))
+        With ws.Range(ws.Cells(hdrRow + 1, 2), ws.Cells(mgrEnd, 2))
             .FormatConditions.Delete
             .FormatConditions.AddDatabar
             With .FormatConditions(1)
@@ -2099,27 +2149,52 @@ Private Sub BuildDashboard(wb As Workbook, ByVal managers As Variant, _
         On Error GoTo 0
     End If
 
-    ' Chart: PMs per manager, below the tables (keeps the A:L width).
-    AddManagerChart ws, 9, mgrEnd, repEnd
+    ' Total row: the table has to add up to the PMs card without a calculator.
+    If mgrEnd > hdrRow Then
+        totalRow = mgrEnd + 1
+        ws.Cells(totalRow, 1).Value = "TOTAL"
+        For sumCol = 2 To 6
+            ws.Cells(totalRow, sumCol).Value = Application.WorksheetFunction.Sum( _
+                ws.Range(ws.Cells(hdrRow + 1, sumCol), ws.Cells(mgrEnd, sumCol)))
+        Next sumCol
+        With ws.Range(ws.Cells(totalRow, 1), ws.Cells(totalRow, 6))
+            .Font.Bold = True
+            .Interior.Color = RGB(221, 235, 247)
+            .Borders.LineStyle = xlContinuous
+            .Borders.Weight = xlThin
+            .VerticalAlignment = xlCenter
+        End With
+        ws.Range(ws.Cells(totalRow, 2), ws.Cells(totalRow, 6)).HorizontalAlignment = xlCenter
+    End If
 
-    ' Footnote.
+    ' Chart: PMs per manager, below the tables (keeps the A:L width).
+    AddManagerChart ws, hdrRow, mgrEnd, repEnd
+
+    ' Footnote: every comparison column, in one line.
     With ws.Range(ws.Cells(repEnd + 2, 1), ws.Cells(repEnd + 2, 12))
         .Merge
-        .Value = "Prior = that row count on the prior report. New = PMs not on the prior report."
+        .Value = "Prior = PMs on this manager's tab last week. Completed = prior PMs no longer open. " & _
+                 "New = PMs not on last week's report. Still Open = carried over from last week (target 0)."
         .Font.Size = 8
         .Font.Italic = True
         .Font.Color = RGB(128, 128, 128)
         .HorizontalAlignment = xlLeft
     End With
 
-    ' Column widths (fixed A:L footprint).
-    ws.Columns("A").ColumnWidth = 24
-    ws.Columns("B").ColumnWidth = 8: ws.Columns("C").ColumnWidth = 8: ws.Columns("D").ColumnWidth = 11
-    ws.Columns("E").ColumnWidth = 8: ws.Columns("F").ColumnWidth = 11
-    ws.Columns("G").ColumnWidth = 18: ws.Columns("H").ColumnWidth = 8: ws.Columns("I").ColumnWidth = 8
+    ' Column widths (fixed A:L footprint). A:D, E:H and I:L are equal (46
+    ' characters each) so the six KPI cards come out the same size.
+    ws.Columns("A").ColumnWidth = 21
+    ws.Columns("B").ColumnWidth = 8: ws.Columns("C").ColumnWidth = 8: ws.Columns("D").ColumnWidth = 9
+    ws.Columns("E").ColumnWidth = 9: ws.Columns("F").ColumnWidth = 11
+    ws.Columns("G").ColumnWidth = 18: ws.Columns("H").ColumnWidth = 8: ws.Columns("I").ColumnWidth = 12
     ws.Columns("J").ColumnWidth = 18: ws.Columns("K").ColumnWidth = 8: ws.Columns("L").ColumnWidth = 8
-    ws.Range("A4:L6").VerticalAlignment = xlCenter
-    ws.Range("A4:L6").WrapText = True
+    ws.Range(ws.Cells(cardRow, 1), ws.Cells(cardRow + 6, 12)).VerticalAlignment = xlCenter
+    ws.Range(ws.Cells(cardRow, 1), ws.Cells(cardRow + 6, 12)).WrapText = True
+
+    ' One typeface for the whole sheet. Without this the dashboard inherits
+    ' Excel's default font while START HERE uses Segoe UI, so a reader sees two
+    ' different typefaces in the same workbook.
+    ws.Cells.Font.Name = UI_FONT
 
     ' Print setup: one page wide, landscape.
     On Error Resume Next
@@ -2167,7 +2242,7 @@ End Sub
 ' Clustered column chart of PMs per manager, placed below the tables.
 Private Sub AddManagerChart(ws As Worksheet, ByVal headerRow As Long, ByVal lastRow As Long, ByVal repEnd As Long)
     Dim co As ChartObject, ch As Chart
-    Dim topRow As Long, leftPos As Double, topPos As Double
+    Dim topRow As Long, leftPos As Double, topPos As Double, tableW As Double
 
     ' Remove any chart from a previous run (the sheet is reused).
     On Error Resume Next
@@ -2178,11 +2253,15 @@ Private Sub AddManagerChart(ws As Worksheet, ByVal headerRow As Long, ByVal last
 
     If lastRow <= headerRow Then Exit Sub
 
-    topRow = IIf(repEnd > lastRow, repEnd, lastRow) + 2
+    ' The footnote sits on the row after the tables, so the chart starts below it.
+    topRow = IIf(repEnd > lastRow, repEnd, lastRow) + 4
     leftPos = ws.Range("A1").Left
     topPos = ws.Range(ws.Cells(topRow, 1), ws.Cells(topRow + 1, 1)).Top
+    ' Chart width follows the table, not a fixed number: a fixed width overhangs
+    ' column L and widens the printed page.
+    tableW = ws.Range(ws.Cells(1, 1), ws.Cells(1, 12)).Width
 
-    Set co = ws.ChartObjects.Add(leftPos, topPos, 900, 280)
+    Set co = ws.ChartObjects.Add(leftPos, topPos, tableW, 280)
     Set ch = co.Chart
     ch.SetSourceData Source:=ws.Range(ws.Cells(headerRow, 1), ws.Cells(lastRow, 2))
     ch.ChartType = xlColumnClustered

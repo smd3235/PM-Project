@@ -5,6 +5,34 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
 
 ## 1.4
 
+### 2026-11-14 01:25:00
+- Dashboard and manager-tab layout fixes, from a review of a freshly built
+  report (`Reports\PM Requests 2026-11-14 (9).xlsx`, 124 PMs / 12 managers).
+  - **The chart no longer covers the footnote.** `AddManagerChart` placed the
+    chart at `repEnd + 2` and the footnote is written at `repEnd + 2`, so the
+    legend line was hidden behind the chart (measured: chart top 438.8 pt,
+    footnote row 438.8-453.8 pt). The chart now starts at `repEnd + 4`.
+  - **The chart is as wide as the table.** It was a fixed 900 pt on a 769.5 pt
+    table, so it overhung column L by ~4.5 inches and widened the printed page;
+    the width is now taken from columns A:L.
+  - **Six KPI cards, three per row, all the same size.** The cards were drawn
+    over columns sized for the tables, which made them 175.6 / 107.3 / 107.3 /
+    144 / 144 / 91.6 pt - nearly 2x apart. They are now A:D, E:H and I:L on two
+    rows, and the column widths are chosen so those three groups are equal (46
+    characters each). Row plan is one pair of numbers (`cardRow`, `hdrRow`).
+  - **One typeface in the workbook.** START HERE used Segoe UI, the dashboard
+    inherited Excel's default (Aptos Narrow), and the manager tables used the
+    export's Arial. `UI_FONT = "Segoe UI"` is now applied to the dashboard, the
+    manager banner and cards, and the manager table.
+  - **TOTAL row** under the manager table, so the rows add up to the PMs card
+    without a calculator.
+  - **Footnote explains all four comparison columns** (Prior, Completed, New,
+    Still Open); it previously explained only Prior and New.
+  - **Manager-tab rep list sorted by count, then name** ("Ravi Patel: 5 | Kofi
+    Mensah: 4 | Julia Brandt: 1"); it was in first-seen export order.
+- DASHBOARD section contract updated for the new invariants; MAP regenerated
+  (`TOC OK: 10 sections, 66 procedures`).
+
 ### 2026-11-14 01:10:00
 - `PM_Report_Macro.bas` is now organised like a documented module instead of one
   long file. Comment-only change: no procedure moved, no behaviour change.
