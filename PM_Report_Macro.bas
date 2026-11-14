@@ -22,9 +22,7 @@ Option Explicit
 '   - Validates required headers before processing.
 '   - Null-safe: blank manager/status/header cells are skipped, not fatal.
 '   - Full source formatting (dates, number formats) carried into output.
-'   - Every manager data row counts as a PM request.
-'   - Rows whose Treatment Status is not a PM request are excluded from
-'     manager tabs and from every count (see PENDING_TEXT).
+'   - Every data row with a manager counts as a PM request.
 '   - New PM rows are light green + bold (names absent from prior report).
 '   - Dashboard summary (KPIs + manager table) is the first tab.
 '   - Raw Data is copied into the report as the last tab.
@@ -35,9 +33,8 @@ Option Explicit
 '   - Keeps the source workbook read-only and closes it without saving.
 '
 ' IMPORTANT BUSINESS RULES:
-'   * Every data row assigned to a manager, whose status is a PM request,
-'     is a PM request on that manager's tab.
-'   * Rows excluded by status are counted in the log, not reported.
+'   * Every data row assigned to a manager is a PM request on that manager's tab.
+'   * Treatment Status is carried into the report but does not filter rows.
 '   * PM Needed equals the number of data rows on the manager tab.
 '   * Treatment PM Date is not a PM-needed filter.
 ' ============================================================
@@ -48,9 +45,6 @@ Private Const DASHBOARD_SHEET As String = "Dashboard"
 Private Const MANAGER_HEADER As String = "Assigned Sales Manager"
 Private Const NAME_HEADER As String = "Name"
 Private Const STATUS_HEADER As String = "Treatment Status"
-' Treatment Status value that marks a row as not a PM request. Such rows are
-' excluded from every tab and count, and are only reported in the run log.
-Private Const PENDING_TEXT As String = "Pending Pickup"
 Private Const BUTTON_NAME As String = "btnCreatePMReport"
 Private Const BUTTON_TEXT As String = "CREATE PM REQUEST REPORT"
 Private Const SETTING_OUTPUT_FOLDER As String = "OutputFolder"
@@ -174,9 +168,8 @@ Public Sub BuildManagerTabs()
             MsgBox "Done!" & vbCrLf & vbCrLf & _
                    "Created: " & vbCrLf & resultParts(1) & vbCrLf & vbCrLf & _
                    "Manager PM requests: " & resultParts(2) & vbCrLf & _
-                   "Excluded by status: " & resultParts(3) & vbCrLf & _
-                   IIf(CLng(resultParts(4)) > 0, "Skipped rows (no manager, not pending): " & resultParts(4) & vbCrLf, "") & _
-                   IIf(UBound(resultParts) >= 5 And Len(resultParts(5)) > 0, "Compared against: " & resultParts(5) & vbCrLf, "No prior report found - comparison skipped." & vbCrLf), vbInformation
+                   IIf(CLng(resultParts(3)) > 0, "Skipped rows (no manager): " & resultParts(3) & vbCrLf, "") & _
+                   IIf(UBound(resultParts) >= 4 And Len(resultParts(4)) > 0, "Compared against: " & resultParts(4) & vbCrLf, "No prior report found - comparison skipped." & vbCrLf), vbInformation
         Else
             MsgBox "The PM report could not be created." & vbCrLf & vbCrLf & _
                    "Error " & resultParts(1) & ": " & resultParts(2), vbCritical
@@ -199,8 +192,8 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
     Dim headerRow As Long, managerCol As Long, statusCol As Long
     Dim lastRow As Long, lastCol As Long
     Dim data As Variant, r As Long, i As Long
-    Dim manager As String, status As String
-    Dim mgrNames As Collection, mgrRows As Collection, excludedRows As Collection
+    Dim manager As String
+    Dim mgrNames As Collection, mgrRows As Collection
     Dim managers As Variant, outWs As Worksheet
     Dim rowsForManager As Collection, arrOut As Variant
     Dim firstOutput As Boolean, reportDate As String, savePath As String
@@ -271,23 +264,20 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
     stage = "data read": LogStage "data read"
     Set mgrNames = New Collection
     Set mgrRows = New Collection
-    Set excludedRows = New Collection
     Set mgrDataNames = New Collection
     Set repNames = New Collection
     ReDim repCounts(1 To 1)
     repN = 0
     stage = "collections set": LogStage "collections set"
-    ' Null-safe classification: blank manager/status cells are skipped,
-    ' not fatal (CStr(Null) would raise error 94). Collection-based to
-    ' avoid the Scripting.Dictionary COM dependency.
+    ' Null-safe classification: a row is a PM request when it has a manager.
+    ' Blank manager cells are skipped, not fatal (CStr(Null) would raise
+    ' error 94). Collection-based to avoid the Scripting.Dictionary COM
+    ' dependency. Treatment Status is required in the export and carried into
+    ' the report, but it no longer filters anything.
     For r = 2 To UBound(data, 1)
         manager = Trim$(SafeStr(data(r, managerCol)))
-        status = SafeStr(data(r, statusCol))
 
-        If InStr(1, status, PENDING_TEXT, vbTextCompare) > 0 Then
-            ' Not tracked any more: counted, then skipped.
-            excludedRows.Add r
-        ElseIf Len(manager) > 0 Then
+        If Len(manager) > 0 Then
             idx = FindManager(mgrNames, manager)
             If idx = 0 Then
                 Set rowsForManager = New Collection
@@ -317,7 +307,7 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
         End If
     Next r
     stage = "classified": LogStage "classified"
-    LogLine "classified: managers=" & CStr(mgrNames.Count) & "  pending=" & CStr(excludedRows.Count) & _
+    LogLine "classified: managers=" & CStr(mgrNames.Count) & _
             "  skipped(no manager)=" & CStr(skippedRows) & "  reps=" & CStr(repN)
     ' Weekly comparison: with no explicit prior, use the previous week's
     ' report found in the output folder (name overlap). An unreadable prior
@@ -341,7 +331,7 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
     LogLine "prior report: " & IIf(Len(priorPath) = 0, "(none)", priorPath) & _
             "  priorPMs=" & CStr(priorPMs) & "  priorNames=" & CStr(priorNames.Count) & "  newPMs=" & CStr(newPMs)
 
-    ' New PMs: assigned (non-pending) names that were not on the prior
+    ' New PMs: names assigned to a manager this week that were not on the prior
     ' report's manager tabs.
     If priorNames.Count > 0 Then
         For i = 1 To mgrDataNames.Count
@@ -374,10 +364,7 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
             LogLine "manager tab done: " & manager
         Next i
     End If
-    stage = "manager tabs": LogStage "manager tabs"
-    ' Rows whose Treatment Status is "Pending Pickup" are no longer tracked:
-    ' they are excluded from the manager tabs and are not reported anywhere.
-    stage = "pending skipped": LogStage "pending skipped"
+stage = "manager tabs": LogStage "manager tabs"
     ' PM totals: sum of rows actually written to manager tabs.
     pmTotal = 0
     For i = 1 To mgrRows.Count: pmTotal = pmTotal + mgrRows(i).Count: Next i
@@ -420,12 +407,12 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
     outWb.Close SaveChanges:=False
     Set outWb = Nothing
 
-    RunReport = "OK|" & savePath & "|" & CStr(pmTotal) & "|" & CStr(excludedRows.Count) & "|" & CStr(skippedRows) & "|" & _
+    RunReport = "OK|" & savePath & "|" & CStr(pmTotal) & "|" & CStr(skippedRows) & "|" & _
                 IIf(Len(priorPath) = 0, "", Mid$(priorPath, InStrRev(priorPath, Application.PathSeparator) + 1))
 
     LogLine "SUMMARY: saved=" & savePath & "  pmTotal=" & CStr(pmTotal) & _
             "  managers=" & CStr(mgrNames.Count) & "  newPMs=" & CStr(newPMs) & _
-            "  pending=" & CStr(excludedRows.Count) & "  skipped=" & CStr(skippedRows)
+            "  skipped=" & CStr(skippedRows)
     LogLine "=== RUN OK in " & Format$(Timer - gLogT0, "0.0") & "s"
 
     SetStatus ""
@@ -1259,7 +1246,6 @@ End Sub
 
 Private Function IsManagerTab(ByVal sheetName As String) As Boolean
     If StrComp(sheetName, DASHBOARD_SHEET, vbTextCompare) = 0 Then Exit Function
-    If StrComp(sheetName, PENDING_TEXT, vbTextCompare) = 0 Then Exit Function
     If StrComp(sheetName, RAW_SHEET, vbTextCompare) = 0 Then Exit Function
     If StrComp(sheetName, SETTINGS_SHEET, vbTextCompare) = 0 Then Exit Function
     If StrComp(sheetName, "START HERE", vbTextCompare) = 0 Then Exit Function

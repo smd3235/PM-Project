@@ -1,6 +1,6 @@
-"""Generate a fake raw-data sample: 12 managers (incl. Rhonda Adomson for exclusion
-testing), ~120 data rows across 2024-2026, mixed Active / Pending Pickup statuses.
-Keeps the 4 real rows from the real export, then appends generated rows.
+"""Generate a fake raw-data sample: 12 managers, 124 data rows across 2024-2026.
+Keeps the 4 real rows from the real export, then appends generated rows. Treatment
+Status is carried as data only - nothing filters on it any more.
 """
 import random
 from datetime import date, timedelta
@@ -52,7 +52,7 @@ def gen_rows(n: int):
     for i in range(n):
         mgr, reps = random.choice(MANAGERS)
         rep = random.choice(reps)
-        status = "Pending Pickup" if random.random() < 0.12 else "Active"
+        status = "Active"
         start = rand_date(date(2024, 6, 1), date(2026, 11, 1))
         pm = rand_date(date(2025, 1, 1), date(2027, 6, 30)) if random.random() < 0.85 else None
         end = rand_date(pm, date(2027, 9, 30)) if (pm and random.random() < 0.7) else None
@@ -116,4 +116,4 @@ print("saved:", out)
 print("total rows:", len(rows))
 print("managers:", len(mgrs), dict(mgrs))
 print("statuses:", dict(stats))
-print("pending-pickup rows (incl. Rhonda):", stats["Pending Pickup"])
+print("managers with no rows:", [m for m in MANAGERS if m[0] not in mgrs] or "none")

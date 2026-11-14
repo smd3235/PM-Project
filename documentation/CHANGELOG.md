@@ -5,6 +5,30 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
 
 ## 1.4
 
+### 2026-11-14 00:35:00
+- Pending Pickup removed from this project entirely. It was a data filter, not a feature:
+  `Treatment Status` still has to exist in the export and is still carried into the report,
+  but nothing reads it any more. **Behaviour change:** a row with a manager is now always a
+  PM request, so the regression numbers move from `106|18|0` to `124|0`.
+  - `PENDING_TEXT` and the status branch in the classification loop are gone; `pendingRows`
+    became `excludedRows` and then went away with the filter.
+  - Result string is now `OK|savePath|pmTotal|skipped|prior`; `BuildManagerTabs` reads the
+    new indexes.
+  - Log: `pending=` dropped from `classified` and `SUMMARY`; the `pending skipped` stage is
+    gone (15 stages, not 16).
+  - `IsManagerTab` no longer special-cases a Pending Pickup sheet; the module header no
+    longer advertises a Pending Pickup tab or comparison card.
+  - Dashboard footnote and the START HERE bullets no longer mention it.
+- `scripts\make_fake_data.py`: generated rows are all `Active` (the 4 real rows are kept
+  verbatim, so one historical `Pending Pickup` value remains in the data); the pending-count
+  print became a "managers with no rows" check. Regenerated fixture: 124 rows, 12 managers.
+- `scripts\make_prior.py` rewritten: it had hardcoded `%TEMP%\kilo\pmtest` paths and looked
+  for a Pending Pickup sheet that no longer exists. It now takes the newest report in
+  `Reports\`, drops N rows from each manager tab (header row 9, data from row 10), and names
+  the output `PM Requests <date - 7 days>.xlsx` so auto-detection finds it next run.
+- Docs: README data rule, result contract, log sample and stage list updated; AGENTS.md
+  expected result is `RESULT=OK|...|124|0|<prior>`.
+
 ### 2026-11-14 00:20:00
 - Cleaned the last of the Pending Pickup feature out of the code and the docs. The
   feature was removed earlier; what was left was stale copy and vocabulary:

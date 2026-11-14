@@ -173,12 +173,12 @@ Every other column is carried into the report as supplied: original order, origi
 original header and number formats (formats are copied row by row, because `Value2` alone
 loses date and number formats).
 
-One data rule decides what a PM request is: a row counts when **Assigned Sales Manager** is
-non-empty and its **Treatment Status** does not contain `Pending Pickup` (case-insensitive).
-Rows that fail the status test are not PM requests - they are counted in the run log
-(`pending=18` on the test fixture, and the `pending skipped` stage) and left out of every tab,
-KPI card and count. The completion message repeats the number so it is never silently lost.
-The fixture therefore produces **106 PMs across 12 managers** from 124 rows.
+One data rule decides what a PM request is: a row counts when **Assigned Sales Manager**
+is non-empty. **Treatment Status** is still required in the export and carried into the
+report, but it no longer filters anything - every row with a manager is a PM request.
+Rows without a manager are counted in the run log (`skipped=0` on the test fixture) and
+left out of every tab, KPI card and count; the completion message repeats the number so it
+is never silently lost. The fixture therefore produces **124 PMs across 12 managers**.
 
 ---
 
@@ -194,21 +194,21 @@ Every line is `yyyy-MM-dd hh:mm:ss  +<ms since previous line>ms  message`, so a 
 line followed by silence - and the line *before* the silence is the step that hung:
 
 ```
-2026-11-13 23:55:48  +0000ms  manager tab 9/12: Derek Owens (10 rows)
-2026-11-13 23:55:48  +0242ms  manager tab done: Derek Owens
-2026-11-13 23:55:49  +0000ms  [stage] manager tabs
-2026-11-13 23:55:49  +0000ms  [stage] pending skipped
-2026-11-13 23:55:50  +0008ms  [stage] saved
-2026-11-13 23:55:50  +0016ms  SUMMARY: saved=...\PM Requests 2026-11-13 (11).xlsx  pmTotal=106  managers=12  newPMs=0  pending=18  skipped=0
-2026-11-13 23:55:50  +0000ms  === RUN OK in 4.4s
+2026-11-14 00:28:49  +0000ms  manager tab 9/12: Derek Owens (10 rows)
+2026-11-14 00:28:49  +0249ms  manager tab done: Derek Owens
+2026-11-14 00:28:50  +0000ms  [stage] manager tabs
+2026-11-14 00:28:51  +0000ms  [stage] dashboard
+2026-11-14 00:28:51  +0683ms  [stage] dashboard moved
+2026-11-14 00:28:51  +0000ms  [stage] saved
+2026-11-14 00:28:51  +0013ms  SUMMARY: saved=...\PM Requests 2026-11-14 (2).xlsx  pmTotal=124  managers=12  newPMs=36  skipped=0
+2026-11-14 00:28:51  +0001ms  === RUN OK in 4.5s
 ```
 
 Errors are logged as `!!! ERROR <number>: <description>   [stage: ...]`.
 
 **Stage labels**, in run order: `fastmode`, `source open`, `raw load`, `data read`,
 `collections set`, `classified`, `detect prior`, `out workbook`, `manager tabs`,
-`pending skipped`, `dashboard`, `dashboard moved`, `raw copied`, `tabs colored`, `view set`,
-`saved`.
+`dashboard`, `dashboard moved`, `raw copied`, `tabs colored`, `view set`, `saved`.
 
 ### The 10-second watchdog
 
@@ -298,10 +298,10 @@ Any change to `PM_Report_Macro.bas` goes through this loop, in this order:
 Expected result of step 3:
 
 ```
-RESULT=OK|C:\...\Reports\PM Requests 2026-11-13 (11).xlsx|106|18|0|PM Requests 2026-11-13 (10).xlsx
+RESULT=OK|C:\...\Reports\PM Requests 2026-11-14 (2).xlsx|124|0|PM Requests 2026-11-07.xlsx
 ```
 
-That is `OK | output path | PMs | excluded by status | skipped-without-manager | prior
+That is `OK | output path | PMs | skipped-without-manager | prior
 report`. Anything else is a bug.
 
 Then: read the log, kill any stray `EXCEL` process, and update `documentation/CHANGELOG.md`.
@@ -338,11 +338,12 @@ produced a false pass here.
 |---|---|---|
 | Whole-project compile | `.\scripts\test-compile.ps1` | `RESULT: COMPILE OK` |
 | Detector self-test | `.\scripts\test-compile.ps1 -SelfTest` | `SELFTEST: injected error detected as expected` |
-| End-to-end build | `.\scripts\run-report.ps1` | `RESULT=OK\|...\|106\|18\|0\|<prior>` |
+| End-to-end build | `.\scripts\run-report.ps1` | `RESULT=OK\|...\|124\|0\|<prior>` |
 | Visual regression | `.\scripts\snapshot-report.ps1` | PNGs in `documentation\screenshots\` |
 
-The fixture is `AOTIOpsTreatmentPMDatesResults_FAKE.xlsx`: 124 rows, 12 managers, 106 active
-PMs, 18 rows excluded by status.
+The fixture is `AOTIOpsTreatmentPMDatesResults_FAKE.xlsx`: 124 rows, 12 managers, all 124
+counted as PMs. Build once, then `python scripts\make_prior.py` writes last week's report, and
+the next build reports `newPMs=36`.
 
 ---
 
@@ -391,7 +392,7 @@ correctly from either side. The audit never writes to either project.
 - Prior-report auto-detection only looks at `PM Requests *.xlsx` in the remembered output
   folder.
 - macOS has no folder picker: the output path is typed into an `InputBox`.
-- Rows excluded by status are counted in the log but not reported in the workbook.
+- Rows with no Assigned Sales Manager are counted in the log but not reported in the workbook.
 
 ---
 

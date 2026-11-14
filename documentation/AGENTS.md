@@ -24,8 +24,8 @@ These rules apply to every change, no exceptions.
    the previous line.
 5. Kill any stray `EXCEL` process before finishing.
 
-Expected result of step 3: `RESULT=OK|...|106|18|0|<prior>` (106 PMs, 18 rows excluded
-by status, 0 skipped-without-manager). Anything else is a bug.
+Expected result of step 3: `RESULT=OK|...|124|0|<prior>` (124 PMs, 0 rows without a
+manager). Anything else is a bug.
 
 ### Testing rules that bite
 
