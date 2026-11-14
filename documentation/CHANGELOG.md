@@ -5,6 +5,29 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
 
 ## 1.4
 
+### 2026-11-14 01:10:00
+- `PM_Report_Macro.bas` is now organised like a documented module instead of one
+  long file. Comment-only change: no procedure moved, no behaviour change.
+  - A **MAP block** at the top lists all 10 sections with their start line and
+    the procedures in each, plus the 5 Public entry points and the counts
+    (10 sections, 66 procedures).
+  - Every section banner now carries its own contract: what the section owns,
+    its entry points, and the invariants that must hold (the result-string
+    format, the fixed row-9/row-10 table geometry, the cancel rules, the log
+    line format, the prior-comparison thresholds, the logo lookup order).
+  - Header fixed: the documented result string was still the pre-1.0
+    `OK|savePath|managerPms|skipped|noManager`; it is now
+    `OK|savePath|pmTotal|skipped|priorFileName` (and
+    `ERROR|number|description @ stage`), which is what `RunReport` returns and
+    what `scripts\run-report.ps1` parses.
+  - Two small code-hygiene fixes found while documenting: `if fd.Show` becomes
+    `If fd.Show`, and the `stage = "manager tabs"` line was at column 0.
+- New `scripts\check-toc.ps1`: read-only check of the MAP against the file
+  (`TOC OK: 10 sections, 66 procedures, line numbers match`), `-Fix` rewrites it
+  and re-checks until the numbers settle. It parses the block as text, so it
+  needs no Excel and cannot touch the workbook. Verified both ways: it reports
+  drift for a deliberately wrong line number and passes on the real file.
+
 ### 2026-11-14 00:56:00
 - Added `scripts\dump-sheet.ps1`: read-only structural dump of one sheet (merged
   areas, column widths, row heights, per-cell font/fill/alignment, shape geometry),

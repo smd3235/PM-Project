@@ -261,6 +261,7 @@ day.
 | `audit-peer.ps1` | Read-only cross audit against the sibling project (see below). |
 | `snapshot-report.ps1` | Exports sheets as PNG images (these screenshots) for docs and design comparison. |
 | `dump-sheet.ps1` | Read-only structural dump of one sheet (merges, widths, heights, fonts, fills, shapes) for verifying layouts. |
+| `check-toc.ps1` | Verifies the MAP block at the top of `PM_Report_Macro.bas` (section start lines and procedure names) against the file. `-Fix` rewrites it. |
 | `make_fake_data.py` | Regenerates the synthetic export. |
 | `make_prior.py` | Builds a prior-week report for comparison tests. |
 

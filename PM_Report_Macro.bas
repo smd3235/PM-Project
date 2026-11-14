@@ -10,9 +10,15 @@ Option Explicit
 ' Structure:
 '   BuildManagerTabs   - interactive shell (dialogs + message).
 '   RunReport          - core pipeline; returns a result string:
-'                        "OK|savePath|managerPms|skipped|noManager"
-'                        "ERROR|number|description"
+'                        "OK|savePath|pmTotal|skipped|priorFileName"
+'                        "ERROR|number|description @ stage"
 '                        Public so the shell and tests can call it.
+'                        priorFileName is "" when nothing was compared.
+'
+' Public surface (everything else in this module is Private):
+'   SetupReportButton, RebuildStartSheet, BuildManagerTabs, RunReport, LogPath.
+'   The shipped button calls BuildManagerTabs by name, so renaming it breaks
+'   the button with no compile error.
 '
 ' One-button weekly workflow:
 '   - Select the current raw-data workbook; no copy/paste.
@@ -37,8 +43,56 @@ Option Explicit
 '   * Treatment Status is carried into the report but does not filter rows.
 '   * PM Needed equals the number of data rows on the manager tab.
 '   * Treatment PM Date is not a PM-needed filter.
+'
+' MAINTENANCE:
+'   * The MAP below is a snapshot of section starts and procedure names. If you
+'     move code, update the MAP in the same change; scripts\check-toc.ps1 checks
+'     it against the file and prints drift (read-only, no Excel).
+'   * One section per concern. New helpers go in the section they serve, not in
+'     a new section, unless the concern is genuinely new.
 ' ============================================================
-
+' ============================================================
+' MAP OF THIS MODULE - snapshot of section starts and procedures.
+' Generated and checked by scripts\check-toc.ps1 (add -Fix to rewrite).
+' Reading order for a change: CORE first, then the section you touch.
+'
+' 10 sections, 66 procedures.
+' Public (outside callers): BuildManagerTabs, LogPath, RebuildStartSheet, RunReport,
+'        SetupReportButton
+'
+'   #  SECTION (line)                          procedures
+'
+'   [  118] INTERACTIVE ENTRY (button)
+'        SetupReportButton, RebuildStartSheet, BuildManagerTabs
+'   [  259] CORE (host-neutral)
+'        RunReport
+'   [  535] HOST / DIALOG HELPERS
+'        PickSourceFile, PickOutputFolder, SetStatus
+'   [  580] RUN LOG
+'        LogOpen, LogLine, LogStage, LogPath, FastModeOn
+'   [  675] WORKBOOK / SHEET SETUP
+'        GetOrCreateStartSheet, AddStartStep, AddStartBullet, PositionStartLogo,
+'        FindSourceWorksheet, LoadSourceIntoRawData, GetOrCreateRawSheet,
+'        GetOrCreateSettingsSheet, GetRememberedOutputFolder, SaveOutputFolder
+'   [  991] PATH / STATE HELPERS
+'        FolderExists, NormalizeFolder, GetUniqueOutputPath, RestoreExcelState
+'   [ 1055] DATA / FORMAT HELPERS
+'        BuildOutputArray, GetHeaderArray, CopyRowFormats, SortManagersByLastName, LastNameKey,
+'        FindHeaderRow, FindHeaderColumn, LastUsedRow, LastUsedColumn, SheetExists,
+'        SafeSheetName, SafeStr, FindManager, GetOrCreateOutputSheet, UniqueSheetName
+'   [ 1258] PRIOR REPORT COMPARISON
+'        DetectPriorReport, PriorNameOverlap, SortPathsNewestFirst, LoadPriorComparison,
+'        IsManagerTab, FindHeaderRowForSingle, NormalizeName, PriorNameExists, CountDiff,
+'        PriorMgrCount
+'   [ 1524] OUTPUT FORMATTING
+'        FormatManagerSheet, CountInSheet, AddPolishedCard, AddPolishedTextCard, ChangeColor,
+'        ApplyReaderFriendlyFormatting
+'   [ 1830] DASHBOARD
+'        BuildDashboard, ColorReportTabs, AddManagerChart, WriteTableHeader,
+'        GetOrCreateDashboardSheet, ResolveLogoPath, AddDashboardLogo, PositionDashboardLogo,
+'        SortByColumnA
+'
+' ============================================================
 Private Const RAW_SHEET As String = "Raw Data"
 Private Const SETTINGS_SHEET As String = "PM Settings"
 Private Const DASHBOARD_SHEET As String = "Dashboard"
@@ -62,6 +116,23 @@ Private gLogT0 As Double
 
 
 ' ==================== INTERACTIVE ENTRY (button) ====================
+' Owns the UI shell only: the START HERE button and the dialogs around a build.
+'
+'   SetupReportButton  - (re)builds the canvas and the CTA button, wires it to
+'                        '<workbook name>'!BuildManagerTabs. Silent=True is the
+'                        automation path (sync_template.ps1, RebuildStartSheet).
+'   RebuildStartSheet  - what sync_template.ps1 calls; no report is run.
+'   BuildManagerTabs   - the real button action: source dialog, output folder,
+'                        RunReport, final message.
+'
+' Contracts:
+'   * The button shape is deleted and recreated every run, so its style cannot
+'     drift. Its name (BUTTON_NAME) is what OnAction replacement relies on.
+'   * OnAction is a string built from ThisWorkbook.Name. Renaming the workbook or
+'     BuildManagerTabs breaks the button silently - no compile error, no log.
+'   * Every cancel path must clear the status bar (SetStatus "") or the user is
+'     left looking at "Step 1 of 3..." from the previous attempt.
+'
 
 Public Sub SetupReportButton(Optional ByVal Silent As Boolean = False)
     Dim ws As Worksheet, shp As Shape
@@ -186,6 +257,30 @@ End Sub
 
 
 ' ====================== CORE (host-neutral) ======================
+' Owns the whole build. Nothing here touches a dialog or a MsgBox: RunReport is
+' callable from the button, from build-worker.ps1, or from a test.
+'
+' Pipeline, in order (each step is a `stage` breadcrumb in the run log):
+'   fastmode -> source open -> raw load -> data read -> classified ->
+'   [detect prior] -> manager tabs -> dashboard -> dashboard moved ->
+'   raw copied -> tabs colored -> view set -> saved.
+'
+' Contracts:
+'   * Result string is the only output: "OK|savePath|pmTotal|skipped|prior"
+'     or "ERROR|number|description @ stage". scripts\run-report.ps1 parses it;
+'     the regression build must be 124 PMs and 0 skipped.
+'   * A row is a PM request when Assigned Sales Manager is non-empty. Blank
+'     manager = skipped and counted, never fatal (CStr(Null) raises error 94).
+'   * Manager tab geometry is fixed: KPI cards above, table header on row 9,
+'     data from row 10. FormatManagerSheet, ApplyReaderFriendlyFormatting and
+'     AddManagerChart all assume it.
+'   * The source workbook is opened ReadOnly and closed with SaveChanges:=False;
+'     the report is built from the Raw Data copy, so every bound is recomputed
+'     after the copy.
+'   * Fast mode is saved and restored on both the success and the Fail path.
+'   * `stage` is captured into errStage before any cleanup runs, so the error
+'     line names the step that failed. Do not reset `stage` in Fail.
+'
 
 Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As String, Optional ByVal priorPath As String = "") As String
     Dim wb As Workbook, srcWb As Workbook, raw As Worksheet, outWb As Workbook
@@ -364,7 +459,7 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
             LogLine "manager tab done: " & manager
         Next i
     End If
-stage = "manager tabs": LogStage "manager tabs"
+    stage = "manager tabs": LogStage "manager tabs"
     ' PM totals: sum of rows actually written to manager tabs.
     pmTotal = 0
     For i = 1 To mgrRows.Count: pmTotal = pmTotal + mgrRows(i).Count: Next i
@@ -438,6 +533,18 @@ End Function
 
 
 ' ====================== HOST / DIALOG HELPERS ======================
+' Owns everything that needs a user: file picker, folder picker, status bar.
+'
+'   PickSourceFile    - GetOpenFilename; returns False when cancelled.
+'   PickOutputFolder  - FileDialog(4); returns "" when cancelled.
+'   SetStatus         - status bar text + a log line; also used with "" to clear.
+'
+' Contracts:
+'   * Cancel is signalled by False / "" and the caller decides what to do; these
+'     helpers never raise on cancel.
+'   * SetStatus logs what it shows, so the status bar text and the log can never
+'     disagree.
+'
 
 ' Source file: Excel open dialog (False = user cancelled).
 Private Function PickSourceFile() As Variant
@@ -456,7 +563,7 @@ Private Function PickOutputFolder() As String
     If Not fd Is Nothing Then
         fd.Title = "Choose the folder for finished PM Requests reports"
         fd.AllowMultiSelect = False
-        if fd.Show = -1 Then PickOutputFolder = fd.SelectedItems(1)
+        If fd.Show = -1 Then PickOutputFolder = fd.SelectedItems(1)
     End If
     On Error GoTo 0
 End Function
@@ -471,10 +578,27 @@ End Sub
 
 
 ' ====================== RUN LOG ======================
+' Owns the run log, which is the only evidence a headless run leaves behind.
 ' Every run writes <workbook folder>\Logs\PM_Report_yyyyMMdd_hhmmss.log, i.e. the
 ' project root next to the master workbook. Each line carries the wall time and
 ' the milliseconds since the previous line, so a hang shows up as one line
 ' followed by silence - and the line before the silence names the step that hung.
+'
+'   LogOpen    - opens today's log beside the workbook (never in the report
+'                folder, so /logs always knows where to look).
+'   LogLine    - "yyyy-MM-dd hh:mm:ss  +NNNNms  msg", appended, also Debug.Print.
+'   LogStage   - "[stage] label" breadcrumb used by RunReport's error handler.
+'   LogPath    - Public; the one line the UI and /logs use to name the file.
+'   FastModeOn - screen updating/events/alerts off; paired with RestoreExcelState.
+'
+' Contracts:
+'   * The log line format is parsed by .kilo\command\logs.md; changing it breaks
+'     /logs.
+'   * gLogPath / gLogPrev / gLogT0 are module-level state and must stay in the
+'     declarations section: a Private declaration between two procedures is not
+'     visible to the rest of the module.
+'   * Timer rolls over at midnight; LogLine adds 86400 to keep deltas positive.
+'
 
 Private Sub LogOpen(ByVal outputFolder As String)
     Dim fld As String, logDir As String
@@ -549,6 +673,33 @@ End Sub
 
 
 ' ====================== WORKBOOK / SHEET SETUP ======================
+' Owns the sheets of the master workbook: the START HERE canvas, the Raw Data
+' sheet the export is copied into, and the hidden PM Settings sheet.
+'
+'   GetOrCreateStartSheet - rebuilds the canvas idempotently: Cells.Clear +
+'                           UnMerge, then a fixed grid B2:F21.
+'   AddStartStep          - numbered step row (navy number gutter in B, text
+'                           merged C:F, alternating fill).
+'   AddStartBullet        - bullet row (ChrW(8226) + two spaces + text) merged C:F.
+'   PositionStartLogo     - keeps the embedded AOTI_Logo picture top-right.
+'   FindSourceWorksheet   - the export sheet that holds both required headers.
+'   LoadSourceIntoRawData - copies the export into Raw Data (values + formats).
+'   GetOrCreateRawSheet   - Raw Data sheet in the master.
+'   GetOrCreateSettingsSheet - hidden PM Settings sheet (may be VeryHidden).
+'   GetRememberedOutputFolder / SaveOutputFolder - the OutputFolder setting.
+'
+' Contracts:
+'   * The canvas geometry is fixed and rebuilt every run: columns A-F are 2.6 /
+'     5 / 28 / 28 / 28 / 2, rows 1-21 have explicit heights, and the CTA band is
+'     B14:F14. SetupReportButton positions the button from that range, so moving
+'     a row silently moves the button off the band.
+'   * Cells.Clear does not remove shapes. Anything that adds a shape must delete
+'     the old one by name first (SetupReportButton, PositionStartLogo) or a
+'     second run leaves two of them.
+'   * The footer is the only version string a user sees: v1.4 + output name.
+'   * Raw Data is a copy, not a link: after LoadSourceIntoRawData the source
+'     workbook is closed and every bound is recomputed from the copy.
+'
 
 ' START HERE canvas, rebuilt idempotently on every run (shapes survive
 ' Cells.Clear). Canvas design: narrow gutters, navy label bars, numbered step
@@ -838,6 +989,20 @@ End Sub
 
 
 ' ====================== PATH / STATE HELPERS ======================
+' Owns path hygiene and Excel's saved state. Which sheet a file goes into is
+' WORKBOOK / SHEET SETUP; this section only answers "where" and "put it back".
+'
+'   FolderExists / NormalizeFolder - path hygiene (trailing separator, ~$).
+'   GetUniqueOutputPath     - never overwrite: "PM Requests <date> (2).xlsx".
+'   RestoreExcelState       - puts calculation/screen/events/alerts back.
+'
+' Contracts:
+'   * Nothing is written outside the project folder. Scratch and logs live under
+'     the workbook's own folder (see scripts\ for the PowerShell side of this).
+'   * GetUniqueOutputPath is what makes a re-run safe; if it ever returns an
+'     existing path, a user report is lost.
+'   * RestoreExcelState runs on both the success and the Fail path of RunReport.
+'
 
 Private Function FolderExists(folderPath As String) As Boolean
     Dim clean As String
@@ -888,6 +1053,29 @@ End Sub
 
 
 ' ====================== DATA / FORMAT HELPERS ======================
+' Owns the small primitives everything else is built from: reading a header
+' row, finding a column, reading used bounds, copying formats, sorting names.
+'
+'   BuildOutputArray / GetHeaderArray - row blocks as Variant arrays.
+'   CopyRowFormats                    - source formatting onto an output row.
+'   SortManagersByLastName / LastNameKey - manager tab order.
+'   FindHeaderRow / FindHeaderColumn  - header lookup by text (raises when the
+'                                       header is missing).
+'   LastUsedRow / LastUsedColumn      - used bounds of a sheet.
+'   SheetExists / SafeSheetName / UniqueSheetName - sheet naming (31 chars,
+'                                       no : \ / ? * [ ]).
+'   SafeStr / FindManager / GetOrCreateOutputSheet.
+'
+' Contracts:
+'   * SafeStr is the null guard. Call it on every cell value that came from a
+'     Variant array: CStr(Null) raises error 94 and takes the run down.
+'   * Lookups are Collection-based on purpose: no Scripting.Dictionary COM
+'     dependency, so the module works on a locked-down desktop.
+'   * Collection items cannot be reassigned, so counters live in a Long array
+'     (repCounts) and are ReDim Preserve'd as they grow.
+'   * FindHeaderColumn is a hard failure by design - a missing required header
+'     means the wrong export, and the message names the header.
+'
 
 Private Function BuildOutputArray(ByRef data As Variant, ByVal rows As Collection, ByVal lastCol As Long) As Variant
     Dim result() As Variant, i As Long, c As Long, srcRow As Long
@@ -1068,9 +1256,34 @@ End Function
 
 
 ' ================== PRIOR REPORT COMPARISON ==================
-' Reads a prior PM Requests report (2.0.18 layout or this builder):
-' every sheet except Dashboard / Raw Data is a manager tab; its Name column
-' feeds the prior-name set.
+' Owns "what changed since last week". Reads a prior PM Requests report
+' (2.0.18 layout or this builder): every sheet except Dashboard / Raw Data is a
+' manager tab; its Name column feeds the prior-name set.
+'
+'   DetectPriorReport   - weekly mode: with no prior given, the previous week's
+'                         report is found automatically in the output folder.
+'                         Candidates are the saved "PM Requests *.xlsx" files,
+'                         newest first; each is scored by how many of the current
+'                         report's names it also contains. The newest high scorer
+'                         wins (an older report with the same score never
+'                         displaces a newer one), and scoring stops at the six
+'                         newest files or at a near-perfect match. "" = no
+'                         plausible prior, so the build runs without a
+'                         comparison.
+'   PriorNameOverlap    - score for one candidate; any error scores 0.
+'   SortPathsNewestFirst- candidate order (string compare on the file name).
+'   LoadPriorComparison - prior names / manager names / manager counts.
+'   IsManagerTab / FindHeaderRowForSingle / NormalizeName / PriorNameExists /
+'   CountDiff / PriorMgrCount - the lookup primitives.
+'
+' Contracts:
+'   * "" is a normal outcome, not an error: first run of the season, a moved
+'     folder, or a renamed export all land here and the build still succeeds.
+'   * An unreadable prior degrades to empty comparison sets. Never raise from
+'     this section - a bad prior file must not fail a build.
+'   * A plausible prior explains at least max(count/4, 5) of this week's names;
+'     at 90% the search stops early.
+'
 
 ' Weekly mode: with no prior report given, the previous week's report is found
 ' automatically in the output folder. Candidates are the saved
@@ -1309,6 +1522,24 @@ End Function
 
 
 ' ================== OUTPUT FORMATTING ==================
+' Owns how one manager tab looks: KPI cards, the table, banding, highlighting.
+'
+'   FormatManagerSheet          - the whole tab: cards, header, body, filters.
+'   CountInSheet                - value count used by the cards.
+'   AddPolishedCard / AddPolishedTextCard - KPI card (eyebrow, label, big value);
+'                                   ChangeColor derives the text colour from the
+'                                   card fill.
+'   ApplyReaderFriendlyFormatting - banding, borders, freeze panes, autofilter,
+'                                   print setup, number formats.
+'
+' Contracts:
+'   * The cards occupy rows 1-8; the table header is row 9 and data starts at
+'     row 10. CORE writes rows with that offset, so both must change together.
+'   * New PM rows (names absent from the prior report) are light green + bold.
+'     With no prior comparison there are no new rows and nothing is highlighted.
+'   * Every formatting call runs under On Error Resume Next: a cosmetic failure
+'     must not fail a finished report.
+'
 
 ' Manager tab: banner row 1, four equal KPI cards on rows 2-4, a full-width
 ' "PMs by Rep" card on rows 5-7, table header on row 9, data from row 10.
@@ -1597,11 +1828,32 @@ End Sub
 
 
 ' ==================== DASHBOARD ====================
-
+' Owns the report's summary sheet: a fixed A:L grid, rebuilt every run.
+'
 ' Weekly summary on a fixed A:L grid: logo + title band, a meta strip,
 ' six KPI cards, a manager table with data bars, a two-block sales-rep grid
 ' with prior-report counts, and a bar chart of PMs per manager below.
 ' Prior columns show 0 when no prior report was compared.
+'
+'   BuildDashboard          - the whole sheet (title, meta, cards, tables,
+'                             chart). CORE moves it to index 1 afterwards.
+'   ColorReportTabs         - navy summary, light blue managers, grey raw data.
+'   AddManagerChart         - clustered column of PMs per manager; deletes any
+'                             previous chart first (the sheet is reused).
+'   WriteTableHeader        - one header row in the builder's navy/white style.
+'   GetOrCreateDashboardSheet - get or create, then Cells.Clear.
+'   ResolveLogoPath / AddDashboardLogo / PositionDashboardLogo - logo art.
+'   SortByColumnA           - name order inside the dashboard tables.
+'
+' Contracts:
+'   * The meta strip names the report and the prior it was compared to; both
+'     come from CORE (savePath and priorPath), so a rename there shows up here.
+'   * Logo lookup order: documentation\aoti-logo.png, then the workbook root,
+'     then LOGO_FILE as a bare relative name. All three are tried with Dir(),
+'     and a missing logo is not fatal - the sheet just has no picture.
+'   * The sheet is reused, not recreated: Cells.Clear plus chart deletion must
+'     run before drawing, or a second run stacks shapes.
+'
 Private Sub BuildDashboard(wb As Workbook, ByVal managers As Variant, _
                            ByVal mgrRows As Collection, ByVal mgrNames As Collection, _
                            ByVal data As Variant, ByVal nameCol As Long, _
