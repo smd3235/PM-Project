@@ -2,6 +2,7 @@
 Keeps the 4 real rows from the real export, then appends generated rows. Treatment
 Status is carried as data only - nothing filters on it any more.
 """
+import os
 import random
 from datetime import date, timedelta
 
@@ -106,7 +107,8 @@ for r, row in enumerate(rows, 2):
         if c in (8, 9, 10, 11) and v:
             cell.number_format = "mm-dd-yy"
 
-out = r"C:\Users\smd32\Downloads\PM Project\AOTIOpsTreatmentPMDatesResults_FAKE.xlsx"
+out = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                   "AOTIOpsTreatmentPMDatesResults_FAKE.xlsx")
 wb.save(out)
 
 from collections import Counter

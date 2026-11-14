@@ -101,6 +101,11 @@ manager). Anything else is a bug.
 | `documentation/` | `AGENTS.md` (rules), `CHANGELOG.md`, `README.md` (pointer to the root README), `screenshots/`, the logo art. A stub `AGENTS.md` at the root points here so Kilo still loads the rules. |
 | `README.md` (root) | The canonical, GitHub-facing project README. GitHub only renders a README at the repository root, so this is the one to edit; `documentation/README.md` just points here. |
 
+Hard rule: **everything stays inside the project folder.** Scripts resolve paths from
+`$PSScriptRoot`/`__file__`, never from `%TEMP%`, `AppData`, or a hardcoded user profile, and
+never write scratch files outside the project. Scratch belongs in `Logs\` (gitignored); build
+output in `Reports\`; master snapshots in `backups\`.
+
 ## 7. Documentation
 
 - Update `CHANGELOG.md` with every change, newest entry first, format
@@ -112,10 +117,11 @@ manager). Anything else is a bug.
 
 ## 8. Borrowing from the sibling project
 
-`C:\Users\smd32\Downloads\Pending Pickup Project` is a separate report builder with
-the same harness design and different data. `scripts\audit-peer.ps1` (via `/audit`)
-compares the two read-only and reports what each side has that the other does not:
-files, VBA procedure names, script function names, and Markdown sections.
+The sibling **Pending Pickup** project (the other project folder next to this one) is a
+separate report builder with the same harness design and different data.
+`scripts\audit-peer.ps1` (via `/audit`) compares the two read-only and reports what each side
+has that the other does not: files, VBA procedure names, script function names, and Markdown
+sections. It finds the sibling by itself; no absolute path is written down.
 
 - Use `/audit` before writing a new helper. Something similar often already exists
   on the other side.

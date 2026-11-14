@@ -5,6 +5,19 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
 
 ## 1.4
 
+### 2026-11-14 00:50:00
+- Nothing in the project points outside the project folder any more.
+  - `scripts\sync_template.ps1` saved the master through `%TEMP%` before swapping it in; it
+    now saves to `Logs\_sync_<stamp>.xlsm` and deletes it after the swap. (A leftover
+    `%TEMP%` copy of the master from an older run was removed.)
+  - `scripts\make_fake_data.py` had the output path hardcoded to this project's folder
+    under one user's `Downloads`; it now derives the project root from `__file__`.
+  - `documentation\CHANGELOG.md` no longer quotes old temp paths or another machine's user
+    profile, and `documentation\AGENTS.md` no longer spells out the sibling project's
+    absolute path (the audit finds it by itself).
+  - New AGENTS.md rule: scripts resolve paths from `$PSScriptRoot`/`__file__`; scratch goes in
+    `Logs\`, output in `Reports\`, snapshots in `backups\`.
+
 ### 2026-11-14 00:35:00
 - Pending Pickup removed from this project entirely. It was a data filter, not a feature:
   `Treatment Status` still has to exist in the export and is still carried into the report,
@@ -22,8 +35,9 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
 - `scripts\make_fake_data.py`: generated rows are all `Active` (the 4 real rows are kept
   verbatim, so one historical `Pending Pickup` value remains in the data); the pending-count
   print became a "managers with no rows" check. Regenerated fixture: 124 rows, 12 managers.
-- `scripts\make_prior.py` rewritten: it had hardcoded `%TEMP%\kilo\pmtest` paths and looked
-  for a Pending Pickup sheet that no longer exists. It now takes the newest report in
+- `scripts\make_prior.py` rewritten: it had hardcoded scratch paths outside the
+  project and looked for a Pending Pickup sheet that no longer exists. It now
+  takes the newest report in
   `Reports\`, drops N rows from each manager tab (header row 9, data from row 10), and names
   the output `PM Requests <date - 7 days>.xlsx` so auto-detection finds it next run.
 - Docs: README data rule, result contract, log sample and stage list updated; AGENTS.md
@@ -136,7 +150,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
     `AGENTS.md` stays at the root because Kilo loads the rules from there; it
     points at `documentation/AGENTS.md`, so there is still only one rule set.
   - Scratch and test tooling now lives in **`scripts/`** instead of
-    `%TEMP%\kilo\pmtest`. Two Python helpers were kept because they still earn
+    a scratch folder outside the project. Two Python helpers were kept because they still earn
     their place (`make_fake_data.py` regenerates the fake export,
     `make_prior.py` builds a prior-week report for comparison tests); the rest of
     that folder was one-off investigation scratch whose functionality now lives in
@@ -313,8 +327,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
   3. The status bar kept "Step 1 of 3..." text when the user cancelled the
      source/prior/folder dialogs; it is now reset on cancel.
 - Output folder preset: the remembered folder in `PM Settings!B2` was the old
-  work path (`C:\Users\Shawnd\OneDrive...\PM Requests`); it is now
-  `C:\Users\smd32\Downloads\PM Project\Reports`. Set by a direct XML edit of
+  work path on another machine; it is now `<project>\Reports`. Set by a direct XML edit of
   the sheet part (Excel's own save of the master hangs in headless COM), with
   VBA and all sheets verified intact afterwards (opens cleanly in Excel 16.0).
 - Removed orphaned Excel save temp files (`5C553B00`, `E4C73B00`) left by the

@@ -101,9 +101,12 @@ try {
         Write-Host "Rebuilt START HERE."
     }
 
-    # Save to a temp file and swap it in: Save() on this workbook can block on
-    # an invisible modal in headless automation.
-    $tmp = Join-Path ([IO.Path]::GetTempPath()) ("{0}_{1}.xlsm" -f [IO.Path]::GetFileNameWithoutExtension($Template), $stamp)
+    # Save to a scratch file inside the project and swap it in: Save() on this
+    # workbook can block on an invisible modal in headless automation. Nothing is
+    # written outside the project folder.
+    $scratchDir = Join-Path $ProjectRoot "Logs"
+    if (-not (Test-Path -LiteralPath $scratchDir)) { New-Item -ItemType Directory -Path $scratchDir | Out-Null }
+    $tmp = Join-Path $scratchDir ("_sync_{0}.xlsm" -f $stamp)
     $wb.SaveAs($tmp, 52)            # 52 = xlOpenXMLWorkbookMacroEnabled
     $wb.Close($false)
     $wb = $null
