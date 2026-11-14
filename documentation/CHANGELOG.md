@@ -7,6 +7,100 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
 
 ## 1.3
 
+### 2026-11-14 00:35:00
+- Compile gate hardened, and made faster:
+  - `-SelfTest` switch: injects a deliberately broken procedure, asserts the gate
+    FAILS, verifies the fixture is really in the module (a fixture that was never
+    saved is the classic false pass), removes it, then asserts the gate passes.
+    This exists because a `BadProc` fixture that was closed without saving once
+    produced a false pass here.
+  - A pass now needs three things: the compile command was available and executed
+    (it refuses to report "clean" if the control is disabled or missing), no error
+    dialog appeared, and the probe marker was written. Previously "no dialog"
+    alone counted as a pass, which a silently skipped compile also produces.
+  - Polling is now 100 ms instead of 400 ms and the wait window is 1 s instead of
+    3 s, so a clean gate takes ~2 s instead of ~5 s.
+- Documented in `documentation/AGENTS.md`: `.kilo\command\logs.md` cannot move to
+  `scripts\` - Kilo only discovers commands under `.kilo\command\` (or legacy
+  `.kilocode\`), so moving it would silently delete `/logs` for anyone else, and
+  `KILO_CONFIG_DIR` is a machine env var, not something the repo can ship.
+
+### 2026-11-14 00:30:00
+- Project layout aligned with the sibling Pending Pickup project:
+  - Markdown and image assets moved to **`documentation/`** - `README.md`,
+    `CHANGELOG.md`, `AGENTS.md`, `aoti-logo.png`, `aoti-logo-2023.svg`. A stub
+    `AGENTS.md` stays at the root because Kilo loads the rules from there; it
+    points at `documentation/AGENTS.md`, so there is still only one rule set.
+  - Scratch and test tooling now lives in **`scripts/`** instead of
+    `%TEMP%\kilo\pmtest`. Two Python helpers were kept because they still earn
+    their place (`make_fake_data.py` regenerates the fake export,
+    `make_prior.py` builds a prior-week report for comparison tests); the rest of
+    that folder was one-off investigation scratch whose functionality now lives in
+    `test-compile.ps1` and `watch-compile-error.ps1`.
+  - Logo path: `AddDashboardLogo` now resolves `documentation\aoti-logo.png`
+    first, then falls back to the workbook root, so the art moves with the docs
+    without breaking older folders.
+
+### 2026-11-14 00:20:00
+- Module renamed: the standard module is now **`PM_Report_Macro`**. VBA module
+  identifiers cannot contain spaces (importing a module called `PM Report Macro`
+  fails with "Not a legal object name"), so the file is `PM_Report_Macro.bas` -
+  matching `Pending_Pickup_Macro.bas` in the sibling project. A spaced file name
+  was tried first and rejected: it only ever causes quoting bugs (the worker
+  launch in `run-report.ps1` failed on `-File 'C:\...\PM Report Macro.bas'` until
+  the path was quoted). The button's `OnAction` still points at `BuildManagerTabs`,
+  so nothing in the UI changes. `sync_template.ps1` removes the legacy
+  `CreateManagerTabs` component on its next run so no stale copy survives.
+- Run logging: every build writes `Logs\PM_Report_yyyyMMdd_hhmmss.log` next to the
+  master workbook. Every line is `yyyy-MM-dd hh:mm:ss  +<ms since previous line>ms  message`,
+  so a hang shows up as one line followed by silence and the line before it names
+  the step that hung. Stage breadcrumbs come from `RunReport`'s `stage` label;
+  `SetStatus` also logs, so each user-visible step is traced. Errors are logged as
+  `!!! ERROR <n>: <description>   [stage: ...]`.
+- New `/logs` slash command (`.kilo/command/logs.md`): prints the run logs
+  oldest-first so the newest run is the last block, plus the slowest steps across
+  the newest five logs.
+- New `run-report.ps1` watchdog: builds one report headlessly and, if no new log
+  line appears for 10 seconds (or no log file at all), kills Excel and the worker,
+  prints the last 40 log lines with the slowest step, and exits `2`. `build-worker.ps1`
+  is its headless worker.
+- All PowerShell tooling moved into `scripts/` (`sync_template`, `run-report`,
+  `build-worker`, plus the three below), following the sibling Pending Pickup
+  project's layout. Each script resolves the project root from `$PSScriptRoot`.
+- Ported from the Pending Pickup project, adapted to this one:
+  - `scripts\test-compile.ps1` - compile gate that copies the master, starts the
+    dialog watcher, appends a probe *inside* `PM_Report_Macro` (VBA compiles one
+    procedure at a time, so a probe in its own module would prove nothing) and
+    runs it. Verdict lands in `Logs\compile-test.log`.
+  - `scripts\watch-compile-error.ps1` - stands outside Excel, logs every modal
+    dialog to `Logs\watcher.log` with a timestamp, dismisses error dialogs, and
+    kills the Excel process if one will not close. This replaces the manual
+    "read the highlighted token from the VBE" procedure that found the
+    `MANAGER_LAST_COL` bug.
+  - `scripts\answer-dialogs.ps1` - answers the real UI path's dialogs (source
+    picker, output folder, final MsgBox) so `BuildManagerTabs` can run unattended.
+- New `AGENTS.md` at the project root: rules for agents - sync, compile-test, run,
+  `/logs`, the 10-second kill rule, module naming, log line format, file layout.
+  Sibling project keeps the same file, so the two projects now behave alike.
+- `test-compile.ps1` upgraded from a call-graph probe to a **real whole-project
+  compile**. VBA compiles one procedure at a time (compile-on-demand), so a probe
+  only proves its own call graph: a negative test - a `BadProc` with an undefined
+  name, never called - still reported OK. The gate now triggers
+  **Debug > Compile VBAProject** through the VBE command bar (Debug menu, control
+  id 578), which compiles every procedure in every module, then runs the execution
+  probe. Verified both ways: clean master passes, and the `BadProc` copy now fails
+  with `module=PM_Report_Macro line=64 token=[NoSuchNameHere =]` plus the dialog
+  text from `Logs\watcher.log`. Gate time is ~5 s.
+- The compile gate now **imports `PM_Report_Macro.bas` into the test copy before
+  compiling**. It used to compile whatever was embedded in the master, so a stale
+  module could pass the gate and then fail on the first real run - which is exactly
+  what happened with the logo-path change below.
+- Fixed "Compile error: Expected array" at `logoPath = LogoPath()`: the local
+  `String logoPath` and the new function `LogoPath` are the same identifier to VBA,
+  so `LogoPath()` parsed as an array index. Renamed the function to
+  `ResolveLogoPath()`. Verified the logo still lands on the report Dashboard
+  (`AOTI_Logo` picture present in the generated `.xlsx`).
+
 ### 2026-11-13 15:00:00
 - Dashboard KPI cards no longer show nonsense without a prior report: with no
   comparison, "Completed" and "Prior PMs Still Open" are 0 instead of the full

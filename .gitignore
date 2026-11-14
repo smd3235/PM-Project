@@ -2,7 +2,11 @@
 Reports/*
 !Reports/.gitkeep
 
-# Master workbook backups from sync_template.ps1
+# Run logs, watcher log, compile-test scratch (all generated)
+Logs/*
+!Logs/.gitkeep
+
+# Master workbook backups from scripts\sync_template.ps1
 backups/
 
 # Excel temp/lock files

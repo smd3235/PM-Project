@@ -1,9 +1,9 @@
 # sync_template.ps1
-# Imports CreateManagerTabs.bas into the master workbook's embedded VBA project
+# Imports PM_Report_Macro.bas into the master workbook's embedded VBA project
 # and rebuilds the START HERE tab (layout + CTA button).
 #
-#   .\sync_template.ps1
-#   .\sync_template.ps1 -Template ..\Other.xlsm -Bas ..\Other.bas
+#   .\scripts\sync_template.ps1
+#   .\scripts\sync_template.ps1 -Template ..\Other.xlsm -Bas ..\Other.bas
 #
 # Idempotent: when the embedded module already matches the .bas file nothing is
 # written, so no backup pile-up. A backup is taken only when the module really
@@ -11,11 +11,14 @@
 # Run this after every change to the .bas file.
 
 param(
-    [string]$Template    = "$PSScriptRoot\PM_Requests_Master_Template.xlsm",
-    [string]$Bas         = "$PSScriptRoot\CreateManagerTabs.bas",
-    [string]$ModuleName  = "CreateManagerTabs",
+    [string]$Template    = (Join-Path (Split-Path -Parent $PSScriptRoot) "PM_Requests_Master_Template.xlsm"),
+    [string]$Bas         = (Join-Path (Split-Path -Parent $PSScriptRoot) "PM_Report_Macro.bas"),
+    [string]$ModuleName  = "PM_Report_Macro",
+    [string]$LegacyModuleName = "CreateManagerTabs",   # pre-rename name; removed if still present
     [switch]$SkipUiRebuild
 )
+
+$ProjectRoot = Split-Path -Parent $PSScriptRoot
 
 $ErrorActionPreference = "Stop"
 
@@ -46,6 +49,16 @@ try {
         throw "Cannot read the VBA project (needs 'Trust access to the VBA project object model' in Trust Center): $($_.Exception.Message)"
     }
 
+    # --- drop the pre-rename module so no stale copy survives ----------------
+    if ($LegacyModuleName -and ($LegacyModuleName -ne $ModuleName)) {
+        foreach ($c in @($vbp.VBComponents)) {
+            if ($c.Name -eq $LegacyModuleName) {
+                $vbp.VBComponents.Remove($c)
+                Write-Host "Removed legacy module '$LegacyModuleName'."
+            }
+        }
+    }
+
     # --- embedded module body ----------------------------------------------
     $component = $null
     foreach ($c in $vbp.VBComponents) { if ($c.Name -eq $ModuleName) { $component = $c; break } }
@@ -64,7 +77,7 @@ try {
     }
 
     # --- backup (only when the module actually changes) ---------------------
-    $backupDir = Join-Path $PSScriptRoot "backups"
+    $backupDir = Join-Path $ProjectRoot "backups"
     if (-not (Test-Path -LiteralPath $backupDir)) { New-Item -ItemType Directory -Path $backupDir | Out-Null }
     $stamp  = Get-Date -Format "yyyy-MM-dd_HHmmss"
     $backup = Join-Path $backupDir ("{0}_{1}.xlsm" -f [IO.Path]::GetFileNameWithoutExtension($Template), $stamp)

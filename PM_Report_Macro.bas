@@ -1,4 +1,4 @@
-Attribute VB_Name = "CreateManagerTabs"
+Attribute VB_Name = "PM_Report_Macro"
 Option Explicit
 
 ' ============================================================
@@ -54,6 +54,14 @@ Private Const SETTING_OUTPUT_FOLDER As String = "OutputFolder"
 Private Const LOGO_SHAPE As String = "AOTI_Logo"
 Private Const START_SHEET As String = "START HERE"
 Private Const LOGO_FILE As String = "aoti-logo.png"
+Private Const LOGO_DIR As String = "documentation"
+Private Const SHEET_COL_WIDTH As Double = 16
+Private Const MANAGER_LAST_COL As Long = 12
+
+' Run-log state (must live in the declarations section, not between procedures).
+Private gLogPath As String
+Private gLogPrev As Double
+Private gLogT0 As Double
 
 
 ' ==================== INTERACTIVE ENTRY (button) ====================
@@ -153,6 +161,8 @@ Public Sub BuildManagerTabs()
     End If
 
     SetStatus "Step 2 of 3 - Building the PM Requests report..."
+    LogOpen outputFolder
+    LogLine "user picked source: " & CStr(sourcePath)
     result = RunReport(CStr(sourcePath), outputFolder, priorPath)
 
     resultParts = Split(result, "|")
@@ -172,6 +182,7 @@ Public Sub BuildManagerTabs()
     Exit Sub
 
 CleanFail:
+    LogLine "!!! ERROR " & CStr(Err.Number) & ": " & Err.Description & "   [BuildManagerTabs]"
     SetStatus ""
     MsgBox "The PM report could not be created." & vbCrLf & vbCrLf & _
            "Error " & CStr(Err.Number) & ": " & Err.Description, vbCritical
@@ -187,15 +198,15 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
     Dim data As Variant, r As Long, i As Long
     Dim manager As String, status As String
     Dim mgrNames As Collection, mgrRows As Collection, pendingRows As Collection
-    Dim managers As Variant, outWs As Worksheet, pendingWs As Worksheet
-    Dim rowsForManager As Collection, arrOut As Variant, arrPending As Variant
+    Dim managers As Variant, outWs As Worksheet
+    Dim rowsForManager As Collection, arrOut As Variant
     Dim firstOutput As Boolean, reportDate As String, savePath As String
     Dim skippedRows As Long, pmTotal As Long, idx As Long
     Dim oldCalc As XlCalculation, oldScreen As Boolean, oldEvents As Boolean, oldAlerts As Boolean
     Dim priorNames As Collection, priorMgrNames As Collection, priorMgrCounts As Collection
-    Dim priorPendingNames As Collection, priorPending As Long, priorPMs As Long
-    Dim curPendingNames As Collection, mgrDataNames As Collection
-    Dim pendMgrNames As Collection, repNames As Collection
+    Dim mgrDataNames As Collection
+    Dim priorPMs As Long
+    Dim repNames As Collection
     Dim repCounts() As Long, repN As Long
     Dim newPMs As Long, nameCol As Long
     Dim repName As String
@@ -204,6 +215,9 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
     On Error GoTo Fail
 
     Set wb = ThisWorkbook
+
+    LogOpen outputFolder
+    LogLine "--- RunReport: source=" & sourcePath & "  prior=" & IIf(Len(priorPath) = 0, "(auto)", priorPath)
 
     oldCalc = -4135: oldScreen = False: oldEvents = False: oldAlerts = False
     On Error Resume Next
@@ -214,11 +228,9 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
     On Error GoTo Fail
 
     FastModeOn
-    stage = "fastmode"
-
+    stage = "fastmode": LogStage "fastmode"
     Set srcWb = Workbooks.Open(Filename:=sourcePath, ReadOnly:=True, UpdateLinks:=False, AddToMru:=False)
-    stage = "source open"
-
+    stage = "source open": LogStage "source open"
     Set raw = FindSourceWorksheet(srcWb, headerRow)
     If raw Is Nothing Then
         Err.Raise vbObjectError + 2202, , "I could not find a worksheet containing both required headers: " & MANAGER_HEADER & " and " & STATUS_HEADER & "."
@@ -228,6 +240,8 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
     statusCol = FindHeaderColumn(raw, headerRow, STATUS_HEADER)
     lastRow = LastUsedRow(raw)
     lastCol = LastUsedColumn(raw)
+    LogLine "source sheet '" & raw.Name & "': headerRow=" & CStr(headerRow) & " lastRow=" & CStr(lastRow) & _
+             " lastCol=" & CStr(lastCol) & " managerCol=" & CStr(managerCol) & " statusCol=" & CStr(statusCol)
 
     If lastRow <= headerRow Then
         Err.Raise vbObjectError + 2203, , "The selected current report has no data rows."
@@ -236,8 +250,7 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
     SetStatus "Loading current report into Raw Data..."
 
     LoadSourceIntoRawData wb, raw, headerRow, lastRow, lastCol
-    stage = "raw load"
-
+    stage = "raw load": LogStage "raw load"
     srcWb.Close SaveChanges:=False
     Set srcWb = Nothing
 
@@ -252,19 +265,15 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
     SetStatus "Building manager and Pending Pickup tabs..."
 
     data = raw.Range(raw.Cells(headerRow, 1), raw.Cells(lastRow, lastCol)).Value2
-    stage = "data read"
-
+    stage = "data read": LogStage "data read"
     Set mgrNames = New Collection
     Set mgrRows = New Collection
     Set pendingRows = New Collection
-    Set curPendingNames = New Collection
     Set mgrDataNames = New Collection
-    Set pendMgrNames = New Collection
     Set repNames = New Collection
     ReDim repCounts(1 To 1)
     repN = 0
-    stage = "collections set"
-
+    stage = "collections set": LogStage "collections set"
     ' Null-safe classification: blank manager/status cells are skipped,
     ' not fatal (CStr(Null) would raise error 94). Collection-based to
     ' avoid the Scripting.Dictionary COM dependency.
@@ -273,9 +282,8 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
         status = SafeStr(data(r, statusCol))
 
         If InStr(1, status, PENDING_TEXT, vbTextCompare) > 0 Then
+            ' Not tracked any more: counted, then skipped.
             pendingRows.Add r
-            If nameCol > 0 Then curPendingNames.Add NormalizeName(data(r, nameCol))
-            pendMgrNames.Add Trim$(SafeStr(data(r, managerCol)))
         ElseIf Len(manager) > 0 Then
             idx = FindManager(mgrNames, manager)
             If idx = 0 Then
@@ -305,29 +313,30 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
             skippedRows = skippedRows + 1
         End If
     Next r
-    stage = "classified"
-
+    stage = "classified": LogStage "classified"
+    LogLine "classified: managers=" & CStr(mgrNames.Count) & "  pending=" & CStr(pendingRows.Count) & _
+            "  skipped(no manager)=" & CStr(skippedRows) & "  reps=" & CStr(repN)
     ' Weekly comparison: with no explicit prior, use the previous week's
     ' report found in the output folder (name overlap). An unreadable prior
     ' degrades to empty comparison data instead of failing the build.
     If Len(priorPath) = 0 Then
         SetStatus "Looking for the prior week's report..."
-        stage = "detect prior"
+        stage = "detect prior": LogStage "detect prior"
         priorPath = DetectPriorReport(outputFolder, data, nameCol, lastRow)
     End If
 
     If Len(priorPath) > 0 Then
         SetStatus "Comparing to the prior report..."
-        LoadPriorComparison priorPath, priorNames, priorMgrNames, priorMgrCounts, priorPendingNames, priorPending
+        LoadPriorComparison priorPath, priorNames, priorMgrNames, priorMgrCounts
     Else
         Set priorNames = New Collection
         Set priorMgrNames = New Collection
         Set priorMgrCounts = New Collection
-        Set priorPendingNames = New Collection
-        priorPending = 0
     End If
     priorPMs = 0
     For i = 1 To priorMgrCounts.Count: priorPMs = priorPMs + CLng(priorMgrCounts(i)): Next i
+    LogLine "prior report: " & IIf(Len(priorPath) = 0, "(none)", priorPath) & _
+            "  priorPMs=" & CStr(priorPMs) & "  priorNames=" & CStr(priorNames.Count) & "  newPMs=" & CStr(newPMs)
 
     ' New PMs: assigned (non-pending) names that were not on the prior
     ' report's manager tabs.
@@ -339,8 +348,7 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
 
     Set outWb = Workbooks.Add(xlWBATWorksheet)
     firstOutput = True
-    stage = "out workbook"
-
+    stage = "out workbook": LogStage "out workbook"
     If mgrNames.Count > 0 Then
         ReDim managers(1 To mgrNames.Count)
         For i = 1 To mgrNames.Count: managers(i) = mgrNames(i): Next i
@@ -348,9 +356,11 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
         For i = LBound(managers) To UBound(managers)
             manager = CStr(managers(i))
             SetStatus "Creating manager tab: " & manager
+            Set rowsForManager = mgrRows(FindManager(mgrNames, manager))
+            LogLine "manager tab " & CStr(i) & "/" & CStr(UBound(managers)) & ": " & manager & _
+                    " (" & CStr(rowsForManager.Count) & " rows)"
             Set outWs = GetOrCreateOutputSheet(outWb, SafeSheetName(manager), firstOutput)
             firstOutput = False
-            Set rowsForManager = mgrRows(FindManager(mgrNames, manager))
             arrOut = BuildOutputArray(data, rowsForManager, lastCol)
             ' Table header on row 9, data from row 10 (KPI cards above).
             outWs.Range(outWs.Cells(9, 1), outWs.Cells(8 + UBound(arrOut, 1), lastCol)).Value = arrOut
@@ -358,27 +368,13 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
                 CopyRowFormats raw, outWs, CLng(rowsForManager(idx)), idx + 9, lastCol
             Next idx
             FormatManagerSheet outWs, manager, priorNames, priorMgrNames, priorMgrCounts, nameCol
+            LogLine "manager tab done: " & manager
         Next i
     End If
-    stage = "manager tabs"
-
-    SetStatus "Creating Pending Pickup tab..."
-    Set pendingWs = GetOrCreateOutputSheet(outWb, "Pending Pickup", firstOutput)
-
-    If pendingRows.Count > 0 Then
-        arrPending = BuildOutputArray(data, pendingRows, lastCol)
-        pendingWs.Range(pendingWs.Cells(1, 1), pendingWs.Cells(UBound(arrPending, 1), lastCol)).Value = arrPending
-        For idx = 1 To pendingRows.Count
-            CopyRowFormats raw, pendingWs, CLng(pendingRows(idx)), idx + 1, lastCol
-        Next idx
-    Else
-        pendingWs.Range(pendingWs.Cells(1, 1), pendingWs.Cells(1, lastCol)).Value = GetHeaderArray(data, lastCol)
-    End If
-
-    FormatPendingPickupSheet pendingWs, priorPendingNames, curPendingNames, priorPending
-    pendingWs.Move After:=outWb.Worksheets(outWb.Worksheets.Count)
-    stage = "pending done"
-
+    stage = "manager tabs": LogStage "manager tabs"
+    ' Rows whose Treatment Status is "Pending Pickup" are no longer tracked:
+    ' they are excluded from the manager tabs and are not reported anywhere.
+    stage = "pending skipped": LogStage "pending skipped"
     ' PM totals: sum of rows actually written to manager tabs.
     pmTotal = 0
     For i = 1 To mgrRows.Count: pmTotal = pmTotal + mgrRows(i).Count: Next i
@@ -390,32 +386,44 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
     savePath = GetUniqueOutputPath(outputFolder, "PM Requests " & reportDate & ".xlsx")
 
     SetStatus "Building dashboard..."
-    stage = "dashboard"
+    stage = "dashboard": LogStage "dashboard"
     BuildDashboard outWb, managers, mgrRows, mgrNames, data, nameCol, _
-                  pmTotal, newPMs, pendingRows.Count, curPendingNames, _
-                  priorNames, priorMgrNames, priorMgrCounts, priorPMs, priorPending, priorPendingNames, _
-                  pendMgrNames, repNames, repCounts, repN, _
+                  pmTotal, newPMs, _
+                  priorNames, priorMgrNames, priorMgrCounts, priorPMs, _
+                  repNames, repCounts, repN, _
                   Mid$(savePath, InStrRev(savePath, Application.PathSeparator) + 1), priorPath
     outWb.Worksheets(DASHBOARD_SHEET).Move Before:=outWb.Worksheets(1)
-    stage = "dashboard moved"
-
-    ' Copy the loaded Raw Data sheet into the report (last tab), like the
-    ' 2.0.18 build. Sheet copy leaves the copy active, so re-activate the
-    ' Dashboard before saving: the report then always opens on it.
+    stage = "dashboard moved": LogStage "dashboard moved"
+    ' Copy the loaded Raw Data sheet into the report (last tab).
     raw.Copy After:=outWb.Worksheets(outWb.Worksheets.Count)
-    stage = "raw copied"
-    outWb.Worksheets(DASHBOARD_SHEET).Activate
-    outWb.Worksheets(DASHBOARD_SHEET).Range("A1").Select
-
+    stage = "raw copied": LogStage "raw copied"
+    ColorReportTabs outWb
+    stage = "tabs colored": LogStage "tabs colored"
+    ' Open the report the way the user wants to see it: maximized, on the
+    ' Dashboard, with A1 selected.
+    With outWb.Worksheets(DASHBOARD_SHEET)
+        .Activate
+        .Range("A1").Select
+    End With
+    On Error Resume Next
+    ActiveWindow.WindowState = xlMaximized
+    ActiveWindow.Zoom = 90
+    On Error GoTo 0
+    stage = "view set": LogStage "view set"
     SetStatus "Saving finished report..."
 
     outWb.SaveAs Filename:=savePath, FileFormat:=xlOpenXMLWorkbook
-    stage = "saved"
+    stage = "saved": LogStage "saved"
     outWb.Close SaveChanges:=False
     Set outWb = Nothing
 
     RunReport = "OK|" & savePath & "|" & CStr(pmTotal) & "|" & CStr(pendingRows.Count) & "|" & CStr(skippedRows) & "|" & _
                 IIf(Len(priorPath) = 0, "", Mid$(priorPath, InStrRev(priorPath, Application.PathSeparator) + 1))
+
+    LogLine "SUMMARY: saved=" & savePath & "  pmTotal=" & CStr(pmTotal) & _
+            "  managers=" & CStr(mgrNames.Count) & "  newPMs=" & CStr(newPMs) & _
+            "  pending=" & CStr(pendingRows.Count) & "  skipped=" & CStr(skippedRows)
+    LogLine "=== RUN OK in " & Format$(Timer - gLogT0, "0.0") & "s"
 
     SetStatus ""
     RestoreExcelState oldCalc, oldScreen, oldEvents, oldAlerts
@@ -425,6 +433,9 @@ Fail:
     ' Capture the error before any cleanup statement can touch Err.
     Dim errNo As Long, errDesc As String, errStage As String
     errNo = Err.Number: errDesc = Err.Description: errStage = stage
+
+    LogLine "!!! ERROR " & CStr(errNo) & ": " & errDesc & "   [stage: " & errStage & "]"
+    LogLine "    last breadcrumb above is where it stopped."
 
     On Error Resume Next
     If Not srcWb Is Nothing Then srcWb.Close SaveChanges:=False
@@ -465,7 +476,77 @@ Private Sub SetStatus(ByVal text As String)
     On Error Resume Next
     Application.StatusBar = text
     On Error GoTo 0
+    LogLine text
 End Sub
+
+
+' ====================== RUN LOG ======================
+' Every run writes <workbook folder>\Logs\PM_Report_yyyyMMdd_hhmmss.log, i.e. the
+' project root next to the master workbook. Each line carries the wall time and
+' the milliseconds since the previous line, so a hang shows up as one line
+' followed by silence - and the line before the silence names the step that hung.
+
+Private Sub LogOpen(ByVal outputFolder As String)
+    Dim fld As String, logDir As String
+
+    If Len(gLogPath) > 0 Then Exit Sub
+
+    On Error Resume Next
+    gLogT0 = Timer
+    gLogPrev = gLogT0
+
+    ' Logs live beside the master workbook, never in the report output folder:
+    ' the /logs command always knows where to look.
+    fld = ThisWorkbook.Path
+    If Len(fld) = 0 Then fld = Trim$(outputFolder)
+    If Len(fld) = 0 Then Exit Sub
+    If Right$(fld, 1) = Application.PathSeparator Then fld = Left$(fld, Len(fld) - 1)
+
+    logDir = fld & Application.PathSeparator & "Logs"
+    If Not FolderExists(logDir) Then MkDir logDir
+
+    gLogPath = logDir & Application.PathSeparator & "PM_Report_" & Format$(Now, "yyyymmdd_hhnnss") & ".log"
+    LogLine "=== RUN START " & Format$(Now, "yyyy-mm-dd hh:nn:ss") & "  (PM Report Macro)"
+    LogLine "workbook: " & ThisWorkbook.Name
+    LogLine "workbook folder: " & fld
+    LogLine "report output folder: " & IIf(Len(Trim$(outputFolder)) = 0, "(not given)", Trim$(outputFolder))
+    LogLine "excel: " & CStr(Application.Version) & "  user: " & CStr(Environ$("USERNAME"))
+    On Error GoTo 0
+End Sub
+
+
+Private Sub LogLine(ByVal msg As String)
+    Dim ff As Integer, nowT As Double, since As Long
+
+    If Len(gLogPath) = 0 Then Exit Sub
+
+    On Error Resume Next
+    nowT = Timer
+    If nowT < gLogPrev Then nowT = nowT + 86400   ' midnight rollover
+    since = CLng((nowT - gLogPrev) * 1000)
+    If since < 0 Then since = 0
+
+    ff = FreeFile
+    Open gLogPath For Append As #ff
+    Print #ff, Format$(Now, "yyyy-mm-dd hh:mm:ss") & "  +" & Format$(since, "0000") & "ms  " & msg
+    Close #ff
+    gLogPrev = nowT
+    On Error GoTo 0
+
+    Debug.Print Format$(Now, "hh:mm:ss") & " +" & since & "ms  " & msg
+End Sub
+
+
+' Fine-grained breadcrumb: the `stage` label from RunReport's error handler.
+Private Sub LogStage(ByVal label As String)
+    LogLine "[stage] " & label
+End Sub
+
+
+' One line naming the current log file, for the UI and the /logs command.
+Public Function LogPath() As String
+    LogPath = gLogPath
+End Function
 
 
 Private Sub FastModeOn()
@@ -1116,17 +1197,13 @@ End Sub
 Private Sub LoadPriorComparison(ByVal priorPath As String, _
                                 ByRef priorNames As Collection, _
                                 ByRef priorMgrNames As Collection, _
-                                ByRef priorMgrCounts As Collection, _
-                                ByRef priorPendingNames As Collection, _
-                                ByRef priorPending As Long)
+                                ByRef priorMgrCounts As Collection)
     Dim wb As Workbook, ws As Worksheet
     Dim headerRow As Long, nameCol As Long, lastRow As Long, r As Long
 
     Set priorNames = New Collection
     Set priorMgrNames = New Collection
     Set priorMgrCounts = New Collection
-    Set priorPendingNames = New Collection
-    priorPending = 0
 
     On Error GoTo Fail
     Set wb = Workbooks.Open(priorPath, ReadOnly:=True, UpdateLinks:=False)
@@ -1145,16 +1222,6 @@ Private Sub LoadPriorComparison(ByVal priorPath As String, _
                     priorNames.Add NormalizeName(ws.Cells(r, nameCol).Value)
                 Next r
             End If
-        ElseIf StrComp(ws.Name, PENDING_TEXT, vbTextCompare) = 0 Then
-            headerRow = FindHeaderRowForSingle(ws, NAME_HEADER)
-            If headerRow = 0 Then headerRow = 1
-            nameCol = FindHeaderColumn(ws, headerRow, NAME_HEADER)
-            If nameCol = 0 Then nameCol = 3
-            lastRow = LastUsedRow(ws)
-            If lastRow > headerRow Then priorPending = lastRow - headerRow
-            For r = headerRow + 1 To lastRow
-                priorPendingNames.Add NormalizeName(ws.Cells(r, nameCol).Value)
-            Next r
         End If
     Next ws
 
@@ -1235,39 +1302,31 @@ End Function
 
 ' ================== OUTPUT FORMATTING ==================
 
-' Manager tab: 2.0.18-style KPI summary cards (rows 1-8), table header on
-' row 9, data from row 10. Cards: PMs Requested / Prior PMs / Completed /
-' New PMs / PMs by Rep (per-manager rep breakdown read from column A).
+' Manager tab: banner row 1, four equal KPI cards on rows 2-4, a full-width
+' "PMs by Rep" card on rows 5-7, table header on row 9, data from row 10.
+' Rows are banded per employee (column A) rather than per row.
 Private Sub FormatManagerSheet(ws As Worksheet, ByVal manager As String, _
                                ByVal priorNames As Collection, _
                                ByVal priorMgrNames As Collection, ByVal priorMgrCounts As Collection, _
                                ByVal nameCol As Long)
     Dim lastCol As Long, lastRow As Long
     Dim priorCount As Long, curCount As Long, newCount As Long, completedCount As Long
-    Dim r As Long, isNew As Boolean
+    Dim r As Long, isNew As Boolean, bandOn As Boolean
     Dim repNames As Collection
-    Dim repText As String, i As Long, repName As String
+    Dim repText As String, i As Long, repName As String, prevRep As String
 
-    lastCol = LastUsedColumn(ws): lastRow = LastUsedRow(ws)
-    If lastRow < 1 Or lastCol < 1 Then Exit Sub
+    lastCol = MANAGER_LAST_COL: lastRow = LastUsedRow(ws)
+    If lastRow < 1 Then Exit Sub
+
+    ' Uniform columns: the four KPI cards below are exactly three columns wide
+    ' each, so they come out the same size without disturbing the data.
+    ws.Columns("A").ColumnWidth = SHEET_COL_WIDTH
+    ws.Range(ws.Cells(1, 2), ws.Cells(1, lastCol)).ColumnWidth = SHEET_COL_WIDTH
+    ws.Columns(lastCol).ColumnWidth = SHEET_COL_WIDTH
 
     ' Table: header on row 9, data rows 10..lastRow.
     ApplyReaderFriendlyFormatting ws, 9, lastRow, lastCol
     If lastRow >= 10 Then SortByColumnA ws, 9, lastRow, lastCol
-
-    ' New PM rows: light green + bold, overriding the banding (matches
-    ' the 2.0.18 build used for work comparisons).
-    If priorNames.Count > 0 And nameCol > 0 Then
-        For r = 10 To lastRow
-            isNew = Not PriorNameExists(priorNames, NormalizeName(ws.Cells(r, nameCol).Value))
-            If isNew Then
-                With ws.Range(ws.Cells(r, 1), ws.Cells(r, lastCol))
-                    .Interior.Color = RGB(226, 239, 218)
-                    .Font.Bold = True
-                End With
-            End If
-        Next r
-    End If
 
     ' KPI values.
     priorCount = PriorMgrCount(priorMgrNames, priorMgrCounts, SafeSheetName(manager))
@@ -1293,17 +1352,15 @@ Private Sub FormatManagerSheet(ws As Worksheet, ByVal manager As String, _
         .HorizontalAlignment = xlCenter
         .VerticalAlignment = xlCenter
     End With
-    ws.Rows(1).RowHeight = 30
+    ws.Rows(1).RowHeight = 34
 
-    ' KPI cards (2.0.18 arrangement).
-    AddPolishedCard ws, "A2:B4", "PMs Requested", curCount, RGB(221, 235, 247), False, "CURRENT"
-    AddPolishedCard ws, "C2:D4", "Prior PMs", priorCount, RGB(242, 242, 242), False, "PRIOR"
-    AddPolishedCard ws, "E2:F4", "Completed", completedCount, RGB(226, 239, 218), False, "SINCE PRIOR"
-    AddPolishedCard ws, "A5:B7", "New PMs", newCount, RGB(226, 239, 218), False, "ADDED"
+    ' Four equal KPI cards across the full width.
+    AddPolishedCard ws, "A2:C4", "PMs Requested", curCount, RGB(221, 235, 247), False, "THIS WEEK"
+    AddPolishedCard ws, "D2:F4", "Prior Report", priorCount, RGB(242, 242, 242), False, "LAST WEEK"
+    AddPolishedCard ws, "G2:I4", "Completed", completedCount, RGB(226, 239, 218), False, "SINCE LAST WEEK"
+    AddPolishedCard ws, "J2:L4", "New PMs", newCount, RGB(226, 239, 218), False, "ADDED"
 
-    ' PMs by Rep card (counts read from the written column A). Rep names stay
-    ' in first-appearance order: SortManagersByLastName only accepts arrays,
-    ' not a Collection.
+    ' PMs by Rep card (counts read from the written column A).
     Set repNames = New Collection
     If lastRow >= 10 Then
         For r = 10 To lastRow
@@ -1321,11 +1378,53 @@ Private Sub FormatManagerSheet(ws As Worksheet, ByVal manager As String, _
             repText = repText & CStr(repNames(i)) & ": " & CStr(CountInSheet(ws, CStr(repNames(i)), lastRow))
         Next i
     End If
-    AddPolishedTextCard ws, "C5:F7", "PMs BY REP", repText, RGB(247, 249, 251), "REP BREAKDOWN"
+    AddPolishedTextCard ws, "A5:L7", "PMs BY SALES REP", repText, RGB(247, 249, 251), "WHO IS DOING THEM"
 
     ws.Rows(8).RowHeight = 10
-    ws.Columns.AutoFit
-    If lastCol >= 1 Then ws.Columns(1).ColumnWidth = 14
+
+    ' Per-employee banding: all rows of one employee share a colour, the next
+    ' employee gets the other colour. New PM rows keep their green highlight.
+    If lastRow >= 10 Then
+        bandOn = True
+        prevRep = ""
+        For r = 10 To lastRow
+            repName = Trim$(SafeStr(ws.Cells(r, 1).Value))
+            If StrComp(repName, prevRep, vbTextCompare) <> 0 Then
+                bandOn = Not bandOn
+                prevRep = repName
+            End If
+            With ws.Range(ws.Cells(r, 1), ws.Cells(r, lastCol))
+                If bandOn Then
+                    .Interior.Color = RGB(255, 255, 255)
+                Else
+                    .Interior.Color = RGB(238, 241, 245)
+                End If
+            End With
+
+            isNew = False
+            If priorNames.Count > 0 And nameCol > 0 Then
+                isNew = Not PriorNameExists(priorNames, NormalizeName(ws.Cells(r, nameCol).Value))
+            End If
+            If isNew Then
+                With ws.Range(ws.Cells(r, 1), ws.Cells(r, lastCol))
+                    .Interior.Color = RGB(226, 239, 218)
+                    .Font.Bold = True
+                End With
+            End If
+        Next r
+    End If
+
+    ' Print setup: one page wide, header row repeated.
+    On Error Resume Next
+    With ws.PageSetup
+        .Orientation = xlLandscape
+        .Zoom = False
+        .FitToPagesWide = 1
+        .FitToPagesTall = False
+        .PrintTitleRows = "$9:$9"
+        .CenterHorizontally = True
+    End With
+    On Error GoTo 0
 End Sub
 
 
@@ -1441,15 +1540,16 @@ End Function
 
 ' Reader-friendly formatting for a data table. headerRow = the table's header
 ' row (manager tabs use row 9 under the KPI cards; Pending Pickup uses 1).
+' Borders, header style, filter and frozen header. Row banding is left to
+' FormatManagerSheet, which bands by employee instead of by row.
 Private Sub ApplyReaderFriendlyFormatting(ws As Worksheet, ByVal headerRow As Long, ByVal lastRow As Long, ByVal lastCol As Long)
-    Dim r As Long
     Dim dataRange As Range
 
-    ' Hairline borders across the data area.
     Set dataRange = ws.Range(ws.Cells(headerRow, 1), ws.Cells(lastRow, lastCol))
     dataRange.Borders.LineStyle = xlContinuous
     dataRange.Borders.Weight = xlHairline
     dataRange.VerticalAlignment = xlCenter
+    dataRange.WrapText = True
 
     ' Strong, easy-to-scan header.
     With ws.Range(ws.Cells(headerRow, 1), ws.Cells(headerRow, lastCol))
@@ -1466,16 +1566,11 @@ Private Sub ApplyReaderFriendlyFormatting(ws As Worksheet, ByVal headerRow As Lo
     End With
     ws.Rows(headerRow).RowHeight = 34
 
-    ' Alternating light banding for the data rows.
+    ' Data rows keep the automatic height so wrapped cells stay readable.
     If lastRow > headerRow Then
-        For r = headerRow + 1 To lastRow
-            If r Mod 2 = 0 Then
-                ws.Range(ws.Cells(r, 1), ws.Cells(r, lastCol)).Interior.Color = RGB(242, 242, 242)
-            Else
-                ws.Range(ws.Cells(r, 1), ws.Cells(r, lastCol)).Interior.Color = RGB(255, 255, 255)
-            End If
-            ws.Rows(r).RowHeight = 22
-        Next r
+        On Error Resume Next
+        ws.Range(ws.Cells(headerRow + 1, 1), ws.Cells(lastRow, lastCol)).EntireRow.AutoFit
+        On Error GoTo 0
     End If
 
     ws.Range(ws.Cells(headerRow, 1), ws.Cells(lastRow, lastCol)).AutoFilter
@@ -1493,85 +1588,31 @@ Private Sub ApplyReaderFriendlyFormatting(ws As Worksheet, ByVal headerRow As Lo
 End Sub
 
 
-Private Sub FormatPendingPickupSheet(ws As Worksheet, ByVal priorPendingNames As Collection, ByVal curPendingNames As Collection, ByVal priorPending As Long)
-    Dim lastCol As Long, lastRow As Long
-
-    lastCol = LastUsedColumn(ws): lastRow = LastUsedRow(ws)
-    If lastCol < 1 Then Exit Sub
-
-    ' Format the header even in a week with no pending rows.
-    ApplyReaderFriendlyFormatting ws, 1, lastRow, lastCol
-    AddPendingComparisonCard ws, curPendingNames, priorPendingNames, priorPending, lastCol
-    If lastRow <= 1 Then Exit Sub
-
-    SortPendingPickup ws, lastRow, lastCol
-
-    ' Every Pending Pickup row is red text.
-    ws.Range(ws.Cells(2, 1), ws.Cells(lastRow, lastCol)).Font.Color = RGB(192, 0, 0)
-End Sub
-
-
-' Compact Pending Pickup comparison card to the right of the data
-' (mirrors the KPI card treatment of the 2.0.18 build).
-Private Sub AddPendingComparisonCard(ws As Worksheet, ByVal curPendingNames As Collection, ByVal priorPendingNames As Collection, ByVal priorPending As Long, ByVal lastCol As Long)
-    Dim box As Range
-    Dim newPending As Long, clearedPending As Long
-    Dim text As String
-
-    If priorPendingNames.Count = 0 Then Exit Sub
-
-    newPending = CountDiff(curPendingNames, priorPendingNames)
-    clearedPending = CountDiff(priorPendingNames, curPendingNames)
-
-    text = "PENDING PICKUP" & vbLf & _
-           "Prior: " & CStr(priorPending) & vbLf & _
-           "Now: " & CStr(curPendingNames.Count) & vbLf & _
-           "New: " & CStr(newPending) & vbLf & _
-           "Cleared: " & CStr(clearedPending)
-
-    Set box = ws.Range(ws.Cells(1, lastCol + 2), ws.Cells(5, lastCol + 3))
-    box.Merge
-    box.Value = text
-    With box
-        .HorizontalAlignment = xlCenter
-        .VerticalAlignment = xlCenter
-        .WrapText = True
-        .Font.Bold = True
-        .Font.Size = 11
-        .Interior.Color = RGB(221, 235, 247)
-        .Borders.LineStyle = xlContinuous
-        .Borders.Weight = xlMedium
-    End With
-    ws.Columns(lastCol + 2).ColumnWidth = 14
-    ws.Columns(lastCol + 3).ColumnWidth = 14
-End Sub
-
-
 ' ==================== DASHBOARD ====================
 
-' 2.0.18-style dashboard: logo zone + title band, meta strip (current/prior/
-' created), six KPI cards, manager table with per-manager pending counts, and
-' the three-block rep/PM grid. Prior columns show 0 when no prior was compared.
+' Weekly summary on a fixed A:L grid: logo + title band, a meta strip,
+' six KPI cards, a manager table with data bars, a two-block sales-rep grid
+' with prior-report counts, and a bar chart of PMs per manager below.
+' Prior columns show 0 when no prior report was compared.
 Private Sub BuildDashboard(wb As Workbook, ByVal managers As Variant, _
                            ByVal mgrRows As Collection, ByVal mgrNames As Collection, _
                            ByVal data As Variant, ByVal nameCol As Long, _
                            ByVal pmTotal As Long, ByVal newPMs As Long, _
-                           ByVal curPendingCount As Long, ByVal curPendingNames As Collection, _
                            ByVal priorNames As Collection, _
                            ByVal priorMgrNames As Collection, ByVal priorMgrCounts As Collection, _
-                           ByVal priorPMs As Long, ByVal priorPending As Long, _
-                           ByVal priorPendingNames As Collection, _
-                           ByVal pendMgrNames As Collection, _
+                           ByVal priorPMs As Long, _
                            ByVal repNames As Collection, repCounts() As Long, ByVal repN As Long, _
                            ByVal currentReportName As String, ByVal priorPath As String)
     Dim ws As Worksheet
-    Dim r As Long, i As Long, idx As Long, mgrPending As Long
+    Dim r As Long, i As Long, idx As Long
     Dim rowsForManager As Collection
-    Dim priorCount As Long, mgrNew As Long, mgrCompleted As Long
+    Dim priorCount As Long, mgrNew As Long, mgrCompleted As Long, mgrOpen As Long
     Dim completedTotal As Long, retainedPMs As Long
     Dim repEnd As Long, repRows As Long, repCount As Long, repGroup As Long
     Dim repRowOffset As Long, repBaseCol As Long
-    Dim sortNames() As String, sortCounts() As Long, tS As String, tC As Long, j As Long
+    Dim sortNames() As String, sortCounts() As Long, sortPrior() As Long
+    Dim tS As String, tC As Long, tP As Long, j As Long
+    Dim mgrEnd As Long
 
     Set ws = GetOrCreateDashboardSheet(wb)
 
@@ -1583,7 +1624,7 @@ Private Sub BuildDashboard(wb As Workbook, ByVal managers As Variant, _
     End With
     With ws.Range("C1:L1")
         .Merge
-        .Value = "PM REQUEST DASHBOARD"
+        .Value = "WEEKLY PM REQUEST SUMMARY"
         .Font.Bold = True
         .Font.Size = 20
         .Font.Color = RGB(255, 255, 255)
@@ -1594,17 +1635,17 @@ Private Sub BuildDashboard(wb As Workbook, ByVal managers As Variant, _
     ws.Rows(1).RowHeight = 34
     ws.Tab.Color = RGB(31, 78, 121)
 
-    ' Meta strip.
+    ' Meta strip: which file this is, which file it is compared to, when built.
     ws.Range("A2:D2").Merge
-    ws.Range("A2").Value = "CURRENT: " & currentReportName
+    ws.Range("A2").Value = "THIS REPORT: " & currentReportName
     ws.Range("E2:H2").Merge
     If Len(priorPath) > 0 Then
-        ws.Range("E2").Value = "PRIOR: " & Mid$(priorPath, InStrRev(priorPath, Application.PathSeparator) + 1)
+        ws.Range("E2").Value = "COMPARED TO: " & Mid$(priorPath, InStrRev(priorPath, Application.PathSeparator) + 1)
     Else
-        ws.Range("E2").Value = "PRIOR: None selected"
+        ws.Range("E2").Value = "COMPARED TO: nothing yet"
     End If
     ws.Range("I2:L2").Merge
-    ws.Range("I2").Value = "CREATED: " & Format(Now, "mm/dd/yyyy h:mm AM/PM")
+    ws.Range("I2").Value = "BUILT: " & Format(Now, "mm/dd/yyyy h:mm AM/PM")
     With ws.Range("A2:L2")
         .Font.Bold = True
         .Font.Size = 9
@@ -1615,76 +1656,123 @@ Private Sub BuildDashboard(wb As Workbook, ByVal managers As Variant, _
         .VerticalAlignment = xlCenter
         .WrapText = True
     End With
-    ws.Rows(2).RowHeight = 28
+    ws.Rows(2).RowHeight = 26
 
     ' KPI cards.
-    AddPolishedCard ws, "A4:B6", "PMs Requested", pmTotal, RGB(221, 235, 247), False, "CURRENT"
-    AddPolishedCard ws, "C4:D6", "Prior PMs", priorPMs, RGB(242, 242, 242), False, "PRIOR"
+    AddPolishedCard ws, "A4:B6", "PMs This Week", pmTotal, RGB(221, 235, 247), False, "TOTAL"
+    AddPolishedCard ws, "C4:D6", "Prior Report", priorPMs, RGB(242, 242, 242), False, "LAST WEEK"
     If priorPMs > 0 Then
         completedTotal = priorPMs - (pmTotal - newPMs)
         If completedTotal < 0 Then completedTotal = 0
     Else
         completedTotal = 0
     End If
-    AddPolishedCard ws, "E4:F6", "Completed", completedTotal, RGB(226, 239, 218), False, "SINCE PRIOR"
-    AddPolishedCard ws, "G4:H6", "New PMs", newPMs, RGB(226, 239, 218), False, "ADDED"
-    AddPolishedCard ws, "I4:J6", "Pending Pickups", curPendingCount, RGB(255, 242, 204), False, "SEPARATE QUEUE"
-    ' Without a prior report there is nothing completed and nothing carried over.
+    AddPolishedCard ws, "E4:F6", "Completed", completedTotal, RGB(226, 239, 218), False, "SINCE LAST WEEK"
+    AddPolishedCard ws, "G4:H6", "New PMs", newPMs, RGB(226, 239, 218), False, "ADDED THIS WEEK"
+    AddPolishedCard ws, "I4:J6", "Sales Reps", repN, RGB(221, 235, 247), False, "DOING THEM"
+    ' Without a prior report there is nothing carried over.
     If priorPMs > 0 Then
         retainedPMs = pmTotal - newPMs
         If retainedPMs < 0 Then retainedPMs = 0
     Else
         retainedPMs = 0
     End If
-    AddPolishedCard ws, "K4:L6", "Prior PMs Still Open", retainedPMs, _
-                      IIf(retainedPMs = 0, RGB(226, 239, 218), RGB(244, 204, 204)), False, "TARGET = 0"
+    AddPolishedCard ws, "K4:L6", "Still Open From Prior", retainedPMs, _
+                      IIf(retainedPMs = 0, RGB(226, 239, 218), RGB(244, 204, 204)), False, "TARGET: 0"
     If retainedPMs = 0 Then ws.Range("K5:L6").Font.Color = RGB(0, 97, 0) Else ws.Range("K5:L6").Font.Color = RGB(156, 0, 6)
 
-    ws.Rows(7).RowHeight = 8
+    ws.Rows(3).RowHeight = 8
+    ws.Rows(7).RowHeight = 16
 
-    ' Manager table.
-    r = 8
-    WriteTableHeader ws, r, 1, Array("Manager", "PMs Requested", "Prior PMs", "Completed", "New PMs", "Pending Pickups")
+    ' Section labels above the two tables.
+    With ws.Range("A8:F8")
+        .Merge
+        .Value = "PM REQUESTS BY SALES MANAGER"
+        .Font.Bold = True
+        .Font.Size = 10
+        .Font.Color = RGB(31, 78, 121)
+        .HorizontalAlignment = xlLeft
+    End With
+    With ws.Range("G8:L8")
+        .Merge
+        .Value = "PMs BY SALES REP"
+        .Font.Bold = True
+        .Font.Size = 10
+        .Font.Color = RGB(31, 78, 121)
+        .HorizontalAlignment = xlLeft
+    End With
 
-    ' Rep grid (three side-by-side blocks), names + counts sorted in parallel.
+    ' Table header row.
+    r = 9
+    WriteTableHeader ws, r, 1, Array("Sales Manager", "PMs", "Prior", "Completed", "New", "Still Open")
+
+    ' Rep grid: two blocks of three columns (G:I, J:L) with the prior count.
     If repN > 0 Then
         ReDim sortNames(1 To repN)
         ReDim sortCounts(1 To repN)
+        ReDim sortPrior(1 To repN)
         For i = 1 To repN
             sortNames(i) = CStr(repNames(i))
             sortCounts(i) = repCounts(i)
+            sortPrior(i) = 0
         Next i
+
+        ' Prior counts: how many of each rep's current PMs were on the prior report.
+        If priorNames.Count > 0 And nameCol > 0 Then
+            If IsArray(managers) Then
+                For i = LBound(managers) To UBound(managers)
+                    Set rowsForManager = mgrRows(FindManager(mgrNames, CStr(managers(i))))
+                    For idx = 1 To rowsForManager.Count
+                        j = FindManager(repNames, Trim$(SafeStr(data(rowsForManager(idx), 1))))
+                        If j > 0 Then
+                            If PriorNameExists(priorNames, NormalizeName(data(rowsForManager(idx), nameCol))) Then sortPrior(j) = sortPrior(j) + 1
+                        End If
+                    Next idx
+                Next i
+            End If
+        End If
+
         For i = 1 To repN - 1
             For j = i + 1 To repN
                 If StrComp(sortNames(j), sortNames(i), vbTextCompare) < 0 Then
                     tS = sortNames(i): sortNames(i) = sortNames(j): sortNames(j) = tS
                     tC = sortCounts(i): sortCounts(i) = sortCounts(j): sortCounts(j) = tC
+                    tP = sortPrior(i): sortPrior(i) = sortPrior(j): sortPrior(j) = tP
                 End If
             Next j
         Next i
+
         repCount = repN
-        repRows = (repCount + 2) \ 3
-        For repGroup = 0 To 2
-            repBaseCol = 7 + (repGroup * 2)
-            WriteTableHeader ws, r, repBaseCol, Array("Sales Rep", "PM Count")
+        repRows = (repCount + 1) \ 2
+        If repRows < 1 Then repRows = 1
+        For repGroup = 0 To 1
+            repBaseCol = 7 + (repGroup * 3)
+            WriteTableHeader ws, r, repBaseCol, Array("Sales Rep", "PMs", "Prior")
         Next repGroup
         For i = 1 To repCount
             repGroup = (i - 1) \ repRows
             repRowOffset = (i - 1) Mod repRows
-            repBaseCol = 7 + (repGroup * 2)
+            repBaseCol = 7 + (repGroup * 3)
             ws.Cells(r + 1 + repRowOffset, repBaseCol).Value = sortNames(i)
             ws.Cells(r + 1 + repRowOffset, repBaseCol + 1).Value = sortCounts(i)
+            ws.Cells(r + 1 + repRowOffset, repBaseCol + 2).Value = sortPrior(i)
         Next i
         repEnd = r + repRows
-        For repGroup = 0 To 2
-            repBaseCol = 7 + (repGroup * 2)
-            ws.Range(ws.Cells(r, repBaseCol), ws.Cells(repEnd, repBaseCol + 1)).Borders.LineStyle = xlContinuous
-            ws.Range(ws.Cells(r, repBaseCol), ws.Cells(repEnd, repBaseCol + 1)).Borders.Weight = xlThin
+        For repGroup = 0 To 1
+            repBaseCol = 7 + (repGroup * 3)
+            With ws.Range(ws.Cells(r, repBaseCol), ws.Cells(repEnd, repBaseCol + 2))
+                .Borders.LineStyle = xlContinuous
+                .Borders.Weight = xlThin
+                .VerticalAlignment = xlCenter
+            End With
+            ws.Range(ws.Cells(r + 1, repBaseCol + 1), ws.Cells(repEnd, repBaseCol + 2)).HorizontalAlignment = xlCenter
         Next repGroup
     Else
-        WriteTableHeader ws, r, 7, Array("Sales Rep", "PM Count")
+        WriteTableHeader ws, r, 7, Array("Sales Rep", "PMs", "Prior")
+        repEnd = r
     End If
 
+    ' Manager rows.
     If IsArray(managers) Then
         For i = LBound(managers) To UBound(managers)
             r = r + 1
@@ -1701,57 +1789,173 @@ Private Sub BuildDashboard(wb As Workbook, ByVal managers As Variant, _
             End If
             mgrCompleted = priorCount - (rowsForManager.Count - mgrNew)
             If mgrCompleted < 0 Then mgrCompleted = 0
-
-            ' Pending pickups assigned to this manager (from the pending rows).
-            mgrPending = 0
-            For idx = 1 To pendMgrNames.Count
-                If StrComp(Trim$(CStr(pendMgrNames(idx))), CStr(managers(i)), vbTextCompare) = 0 Then mgrPending = mgrPending + 1
-            Next idx
+            mgrOpen = rowsForManager.Count - mgrNew
+            If mgrOpen < 0 Then mgrOpen = 0
 
             ws.Cells(r, 1).Value = CStr(managers(i))
             ws.Cells(r, 2).Value = rowsForManager.Count
             ws.Cells(r, 3).Value = priorCount
             ws.Cells(r, 4).Value = mgrCompleted
             ws.Cells(r, 5).Value = mgrNew
-            ws.Cells(r, 6).Value = mgrPending
+            ws.Cells(r, 6).Value = mgrOpen
             ws.Hyperlinks.Add Anchor:=ws.Cells(r, 1), Address:="", _
                                SubAddress:="'" & SafeSheetName(CStr(managers(i))) & "'!A1", _
                                TextToDisplay:=CStr(managers(i))
             ws.Cells(r, 4).Font.Color = RGB(0, 97, 0)
+            If mgrOpen > 0 Then ws.Cells(r, 6).Font.Color = RGB(156, 0, 6)
         Next i
     End If
+    mgrEnd = r
 
     ' Table styling.
-    ws.Rows(r).RowHeight = 28
-    With ws.Range("A8:F8")
-        .Font.Bold = True
-        .HorizontalAlignment = xlCenter
-    End With
-    If r > 9 Then
-        ws.Range("E9:E" & r).Interior.Color = RGB(226, 239, 218)
-        ws.Range("F9:F" & r).Interior.Color = RGB(255, 242, 204)
-        For i = 9 To r
+    ws.Rows(mgrEnd).RowHeight = 26
+    If mgrEnd > 9 Then
+        For i = 9 To mgrEnd
             If i Mod 2 = 1 Then ws.Range(ws.Cells(i, 1), ws.Cells(i, 6)).Interior.Color = RGB(247, 249, 251)
         Next i
-        ws.Range(ws.Cells(9, 1), ws.Cells(r, 6)).VerticalAlignment = xlCenter
-        ws.Range(ws.Cells(9, 1), ws.Cells(r, 6)).Borders.Weight = xlThin
+        ws.Range(ws.Cells(10, 1), ws.Cells(mgrEnd, 6)).VerticalAlignment = xlCenter
+        With ws.Range(ws.Cells(9, 1), ws.Cells(mgrEnd, 6))
+            .Borders.LineStyle = xlContinuous
+            .Borders.Weight = xlThin
+        End With
+        For i = 10 To mgrEnd
+            ws.Range(ws.Cells(i, 2), ws.Cells(i, 6)).HorizontalAlignment = xlCenter
+        Next i
     End If
 
-    ' Column widths (2.0.18 footprint A:L).
-    ws.Columns("A").ColumnWidth = 23
-    ws.Columns("B").ColumnWidth = 12: ws.Columns("C").ColumnWidth = 11: ws.Columns("D").ColumnWidth = 11
-    ws.Columns("E").ColumnWidth = 10: ws.Columns("F").ColumnWidth = 14
-    ws.Columns("G").ColumnWidth = 17: ws.Columns("H").ColumnWidth = 9
-    ws.Columns("I").ColumnWidth = 17: ws.Columns("J").ColumnWidth = 9
-    ws.Columns("K").ColumnWidth = 17: ws.Columns("L").ColumnWidth = 9
+    ' Data bars on the manager PM column (visual weight, no extra width).
+    If mgrEnd > 10 Then
+        On Error Resume Next
+        With ws.Range(ws.Cells(10, 2), ws.Cells(mgrEnd, 2))
+            .FormatConditions.Delete
+            .FormatConditions.AddDatabar
+            With .FormatConditions(1)
+                .BarFill.Type = xlDataBarFillSolid
+                .BarFill.Color = RGB(91, 155, 213)
+                .MinPoint.Modify newtype:=xlConditionValueLowestValue
+                .MaxPoint.Modify newtype:=xlConditionValueHighestValue
+            End With
+        End With
+        On Error GoTo 0
+    End If
+
+    ' Chart: PMs per manager, below the tables (keeps the A:L width).
+    AddManagerChart ws, 9, mgrEnd, repEnd
+
+    ' Footnote.
+    With ws.Range(ws.Cells(repEnd + 2, 1), ws.Cells(repEnd + 2, 12))
+        .Merge
+        .Value = "Prior = that row count on the prior report. New = PMs not on the prior report. Rows with Treatment Status 'Pending Pickup' are not tracked."
+        .Font.Size = 8
+        .Font.Italic = True
+        .Font.Color = RGB(128, 128, 128)
+        .HorizontalAlignment = xlLeft
+    End With
+
+    ' Column widths (fixed A:L footprint).
+    ws.Columns("A").ColumnWidth = 24
+    ws.Columns("B").ColumnWidth = 8: ws.Columns("C").ColumnWidth = 8: ws.Columns("D").ColumnWidth = 11
+    ws.Columns("E").ColumnWidth = 8: ws.Columns("F").ColumnWidth = 11
+    ws.Columns("G").ColumnWidth = 18: ws.Columns("H").ColumnWidth = 8: ws.Columns("I").ColumnWidth = 8
+    ws.Columns("J").ColumnWidth = 18: ws.Columns("K").ColumnWidth = 8: ws.Columns("L").ColumnWidth = 8
     ws.Range("A4:L6").VerticalAlignment = xlCenter
     ws.Range("A4:L6").WrapText = True
 
-    AddDashboardLogo ws
-    ws.Activate
-    ws.Range("A1").Select
+    ' Print setup: one page wide, landscape.
     On Error Resume Next
-    ActiveWindow.Zoom = 90
+    With ws.PageSetup
+        .Orientation = xlLandscape
+        .Zoom = False
+        .FitToPagesWide = 1
+        .FitToPagesTall = False
+        .CenterHorizontally = True
+    End With
+    On Error GoTo 0
+
+    AddDashboardLogo ws
+
+    ' Dashboard canvas: no gridlines, no row/column headings, and no horizontal
+    ' scrollbar - that hands the freed strip to the sheet tabs so more of them
+    ' are visible at once.
+    On Error Resume Next
+    ws.Activate
+    ActiveWindow.DisplayGridlines = False
+    ActiveWindow.DisplayHeadings = False
+    ActiveWindow.DisplayHorizontalScrollBar = False
+    ws.Range("A1").Select
+    On Error GoTo 0
+End Sub
+
+
+' Tab colours: navy for the summary, light blue for managers (dark text stays
+' legible), grey for the raw data.
+Private Sub ColorReportTabs(wb As Workbook)
+    Dim ws As Worksheet
+
+    For Each ws In wb.Worksheets
+        If StrComp(ws.Name, DASHBOARD_SHEET, vbTextCompare) = 0 Then
+            ws.Tab.Color = RGB(31, 78, 121)
+        ElseIf StrComp(ws.Name, RAW_SHEET, vbTextCompare) = 0 Then
+            ws.Tab.Color = RGB(191, 191, 191)
+        Else
+            ws.Tab.Color = RGB(157, 195, 230)
+        End If
+    Next ws
+End Sub
+
+
+' Clustered column chart of PMs per manager, placed below the tables.
+Private Sub AddManagerChart(ws As Worksheet, ByVal headerRow As Long, ByVal lastRow As Long, ByVal repEnd As Long)
+    Dim co As ChartObject, ch As Chart
+    Dim topRow As Long, leftPos As Double, topPos As Double
+
+    ' Remove any chart from a previous run (the sheet is reused).
+    On Error Resume Next
+    For Each co In ws.ChartObjects
+        co.Delete
+    Next co
+    On Error GoTo 0
+
+    If lastRow <= headerRow Then Exit Sub
+
+    topRow = IIf(repEnd > lastRow, repEnd, lastRow) + 2
+    leftPos = ws.Range("A1").Left
+    topPos = ws.Range(ws.Cells(topRow, 1), ws.Cells(topRow + 1, 1)).Top
+
+    Set co = ws.ChartObjects.Add(leftPos, topPos, 900, 280)
+    Set ch = co.Chart
+    ch.SetSourceData Source:=ws.Range(ws.Cells(headerRow, 1), ws.Cells(lastRow, 2))
+    ch.ChartType = xlColumnClustered
+    ch.HasTitle = True
+    ch.ChartTitle.Text = "PMs by Sales Manager"
+    On Error Resume Next
+    With ch.ChartTitle.Font
+        .Name = "Segoe UI"
+        .Size = 12
+        .Bold = True
+        .Color = RGB(31, 78, 121)
+    End With
+    With ch.PlotArea.Format.Fill
+        .Visible = msoTrue
+        .ForeColor.RGB = RGB(255, 255, 255)
+    End With
+    With ch.ChartArea.Format.Fill
+        .Visible = msoTrue
+        .ForeColor.RGB = RGB(255, 255, 255)
+    End With
+    With ch.SeriesCollection(1).Format.Fill
+        .Visible = msoTrue
+        .ForeColor.RGB = RGB(91, 155, 213)
+    End With
+    ch.HasLegend = False
+    With ch.Axes(xlValue)
+        .HasMajorGridlines = True
+        .MinimumScale = 0
+        .TickLabels.Font.Size = 9
+    End With
+    With ch.Axes(xlCategory)
+        .TickLabels.Font.Size = 9
+    End With
     On Error GoTo 0
 End Sub
 
@@ -1781,11 +1985,30 @@ Private Function GetOrCreateDashboardSheet(wb As Workbook) As Worksheet
 End Function
 
 
+' Logo art lives with the docs: documentation\aoti-logo.png next to the workbook.
+' Falls back to the workbook root so older folders keep working.
+Private Function ResolveLogoPath() As String
+    Dim base As String, p As String
+
+    base = ThisWorkbook.Path
+    If Len(base) = 0 Then ResolveLogoPath = LOGO_FILE: Exit Function
+
+    p = base & Application.PathSeparator & LOGO_DIR & Application.PathSeparator & LOGO_FILE
+    If Dir(p) <> "" Then ResolveLogoPath = p: Exit Function
+
+    p = base & Application.PathSeparator & LOGO_FILE
+    If Dir(p) <> "" Then ResolveLogoPath = p: Exit Function
+
+    ResolveLogoPath = base & Application.PathSeparator & LOGO_DIR & Application.PathSeparator & LOGO_FILE
+End Function
+
+
 ' Adds the company logo to the dashboard's white logo zone (A1:B1).
-' Prefers aoti-logo.png beside the workbook (works headless, no clipboard);
-' falls back to copying the embedded AOTI_Logo shape from START HERE when
-' Excel is visible. Any existing logo on the sheet is removed first, so
-' re-runs stay idempotent. Silent no-op when no source is available.
+' Prefers documentation\aoti-logo.png beside the workbook (works headless, no
+' clipboard); falls back to the workbook root, then to copying the embedded
+' AOTI_Logo shape from START HERE when Excel is visible. Any existing logo on the
+' sheet is removed first, so re-runs stay idempotent. Silent no-op when no source
+' is available.
 Private Sub AddDashboardLogo(ws As Worksheet)
     Dim src As Shape, dst As Shape
     Dim logoH As Double, logoW As Double, logoPath As String
@@ -1800,8 +2023,8 @@ Private Sub AddDashboardLogo(ws As Worksheet)
     ws.Shapes(LOGO_SHAPE).Delete
     On Error GoTo 0
 
-    ' 1) Load from aoti-logo.png next to the workbook (automation-safe).
-    logoPath = ThisWorkbook.Path & Application.PathSeparator & LOGO_FILE
+    ' 1) Load from documentation\aoti-logo.png (automation-safe).
+    logoPath = ResolveLogoPath()
     On Error Resume Next
     Set dst = ws.Shapes.AddPicture(Filename:=logoPath, LinkToFile:=False, _
                                    SaveWithDocument:=True, Left:=0, Top:=0, Width:=100, Height:=logoH)
@@ -1853,23 +2076,6 @@ Private Sub PositionDashboardLogo(ws As Worksheet, shp As Shape, ByVal logoH As 
     shp.Left = ws.Range("A1").Left + 6
     shp.Top = ws.Range("A1").Top + (ws.Rows(1).Height - logoH) / 2
     shp.Placement = xlMove
-End Sub
-
-
-Private Sub SortPendingPickup(ws As Worksheet, lastRow As Long, lastCol As Long)
-    If lastRow <= 2 Then Exit Sub
-    With ws.Sort
-        .SortFields.Clear
-        .SortFields.Add Key:=ws.Range(ws.Cells(2, 1), ws.Cells(lastRow, 1)), _
-                        SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:=xlSortNormal
-        .SortFields.Add Key:=ws.Range(ws.Cells(2, 2), ws.Cells(lastRow, 2)), _
-                        SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:=xlSortNormal
-        .SetRange ws.Range(ws.Cells(1, 1), ws.Cells(lastRow, lastCol))
-        .Header = xlYes
-        .MatchCase = False
-        .Orientation = xlTopToBottom
-        .Apply
-    End With
 End Sub
 
 
