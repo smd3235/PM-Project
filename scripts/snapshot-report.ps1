@@ -1,25 +1,23 @@
 # snapshot-report.ps1
-# Exports one or more sheets of a workbook as PNG images, for documentation and
-# design comparison. Each sheet is copied as a picture, pasted onto a throwaway
-# chart, and exported from there: this captures fills, fonts, merges, and shapes
-# exactly as Excel renders them, which a cell-by-cell dump cannot.
+# Exports every sheet (Dashboard, manager tabs, Raw Data) of a generated
+# PM report as a PNG into documentation\screenshots\. Uses CopyPicture ->
+# standalone Chart sheet -> Chart.Export so whole sheets are captured as
+# images. Defaults to the newest workbook in Reports\ and exports ALL sheets
+# when -Sheets is omitted.
 #
-#   .\scripts\snapshot-report.ps1 -Path "PM_Requests_Master_Template.xlsm" -Sheets "START HERE"
-#   .\scripts\snapshot-report.ps1 -Path "Reports\PM Requests 2026-11-13.xlsx" -Sheets Dashboard,"Derek Owens"
+#   .\scripts\snapshot-report.ps1 -Path "Reports\PM Requests 2026-11-14 (31).xlsx"
+#   .\scripts\snapshot-report.ps1 -Sheets @("Dashboard","Alice Fontaine")
 #
-# Defaults to the newest workbook in Reports\. Images land in
-# documentation\screenshots\ unless -OutFolder says otherwise.
 # Exit codes: 0 = all requested sheets exported, 2 = no workbook, 3 = nothing exported.
 
 [CmdletBinding()]
 param(
     [string]   $Path,
-    [string[]]$Sheets,
+    [string[]] $Sheets,
     [string]   $OutFolder,
-    [string]   $Prefix,
+    [string]   $Prefix = "report",
     [switch]   $List
 )
-
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 
@@ -42,14 +40,29 @@ $Path = (Resolve-Path -LiteralPath $Path).Path
 
 if (-not $OutFolder) { $OutFolder = Join-Path $ProjectRoot "documentation\screenshots" }
 if (-not (Test-Path -LiteralPath $OutFolder)) { New-Item -ItemType Directory -Path $OutFolder | Out-Null }
-if (-not $Prefix) { $Prefix = "report" }
+
+# Always start fresh: delete every existing PNG so committed screenshots
+# reflect only the latest report run, never a stale mix of old/new sheets.
+Get-ChildItem -LiteralPath $OutFolder -Filter *.png -File | Remove-Item -Force -ErrorAction SilentlyContinue
 
 function Save-SheetImage {
     param($Workbook, $Worksheet, [string]$PngPath)
 
     $used = $Worksheet.UsedRange
-    $range = $Worksheet.Range($Worksheet.Cells(1, 1), $Worksheet.Cells($used.Row + $used.Rows.Count, $used.Column + $used.Columns.Count))
-    $range.CopyPicture(1, 2) | Out-Null
+    $range = $Worksheet.Range($Worksheet.Cells(1, 1), $Worksheet.Cells($used.Row + $used.Rows.Count - 1, $used.Column + $used.Columns.Count - 1))
+
+    # Activate sheet and set zoom to 100% so CopyPicture captures at full resolution,
+    # not zoomed out (which makes everything look squished).
+    $Worksheet.Activate() | Out-Null
+    $Workbook.Application.ActiveWindow.Zoom = 100
+
+    $range.CopyPicture(1, 2) | Out-Null   # xlScreen=1, xlBitmap=2
+
+    $rows = [int]$used.Rows.Count
+    $cols = [int]$used.Columns.Count
+    # Wider chart so content isn't squished onto one page width.
+    $w = [Math]::Max(1800, $cols * 110)
+    $h = [Math]::Max(900,  $rows * 30)
 
     $chart = $Workbook.Charts.Add()
     try {
@@ -66,11 +79,12 @@ function Save-SheetImage {
 Get-Process EXCEL -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
 $xl = New-Object -ComObject Excel.Application
-$xl.Visible = $false
+$xl.Visible = $true       # CopyPicture(xlScreen) needs a visible window to render live cell values
 $xl.DisplayAlerts = $false
 $xl.AutomationSecurity = 3   # msoAutomationSecurityForceDisable
 $wb = $null
 $exported = 0
+$failed = @()
 try {
     $wb = $xl.Workbooks.Open($Path, $false, $true)
 
@@ -91,14 +105,23 @@ try {
             else { Write-Host "Sheet not found, skipped: $name" -ForegroundColor Yellow }
         }
     }
+    else {
+        $targets = @($wb.Worksheets)
+    }
 
     foreach ($ws in $targets) {
         $safe = ($ws.Name -replace "[^\w\-]+", "-").Trim("-").ToLower()
         $png = Join-Path $OutFolder ("{0}-{1}.png" -f $Prefix, $safe)
-        Save-SheetImage -Workbook $wb -Worksheet $ws -PngPath $png
-        $kb = [math]::Round((Get-Item -LiteralPath $png).Length / 1KB, 1)
-        Write-Host ("  exported {0}  ({1} KB)" -f $png, $kb) -ForegroundColor Green
-        $exported++
+        try {
+            Save-SheetImage -Workbook $wb -Worksheet $ws -PngPath $png
+            $kb = [math]::Round((Get-Item -LiteralPath $png).Length / 1KB, 1)
+            Write-Host ("  exported {0}  ({1} KB)" -f $png, $kb) -ForegroundColor Green
+            $exported++
+        }
+        catch {
+            $failed += $ws.Name
+            Write-Host ("  FAILED {0} : {1}" -f $ws.Name, $_.Exception.Message) -ForegroundColor Red
+        }
     }
 }
 finally {
@@ -106,6 +129,10 @@ finally {
     $xl.Quit()
     [System.Runtime.InteropServices.Marshal]::ReleaseComObject($xl) | Out-Null
     Get-Process EXCEL -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+}
+
+if ($failed.Count -gt 0) {
+    Write-Host ("Sheets that failed: {0}" -f ($failed -join ", ")) -ForegroundColor Red
 }
 
 if ($exported -eq 0 -and -not $List -and $Sheets) {

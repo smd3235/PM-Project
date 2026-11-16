@@ -292,12 +292,18 @@ $markerOk = (Test-Path -LiteralPath $marker)
 $ok = ((-not $compileError) -and (-not $runError) -and $markerOk -and (-not $selfTestBroken))
 
 if ($compileError) {
+    $errLog = Join-Path $logDir "compile-errors.log"
+    $errLine = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') | COMPILE FAILED - $compileError"
+    if ($where) { $errLine += " | $where" }
+    Add-Content -LiteralPath $errLog -Value $errLine
+
     Log "RESULT: COMPILE FAILED - $compileError"
     if ($where) { Log "         $where" }
     if ($compileText.Count -gt 0) {
         Log "Captured dialog text (Logs\watcher.log):"
         foreach ($l in $compileText) { if ("$l".Trim()) { Log "  $l" } }
     }
+    Log "Full error details written to Logs\compile-errors.log"
 } elseif ($runError) {
     Log "RESULT: COMPILE OK, PROBE FAILED - $runError"
     $ok = $false
