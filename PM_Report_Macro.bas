@@ -1301,7 +1301,7 @@ Private Function GetOrCreateSettingsSheet(wb As Workbook) As Worksheet
         ws.Range("B1").Value = "Value"
         ws.Range("A2").Value = SETTING_OUTPUT_FOLDER
     End If
-    ws.Visible = xlSheetVeryHidden
+    ws.Visible = xlSheetVisible
     Set GetOrCreateSettingsSheet = ws
     Exit Function
 LocalFail:
@@ -3110,7 +3110,7 @@ Private Function GetEmailTemplate() As String
         ' Create the sheet
         Set ws = ThisWorkbook.Sheets.Add
         ws.Name = "EmailTemplate"
-        ws.Visible = xlSheetVeryHidden
+        ws.Visible = xlSheetVisible
         ws.Range("A1").Value = "Hi" & vbCrLf & vbCrLf & _
             "Our records indicate that the following patient's equipment has been on an " & _
             "active treatment plan over 10 months. Please submit an Annual Equipment " & _
@@ -3139,7 +3139,7 @@ Private Function GetCCEmails() As String
     If ws Is Nothing Then
         Set ws = ThisWorkbook.Sheets.Add
         ws.Name = "EmailSettings"
-        ws.Visible = xlSheetVeryHidden
+        ws.Visible = xlSheetVisible
         ws.Range("A1").Value = "CC Emails (comma-separated):"
         ws.Range("B1").Value = ""
     End If
