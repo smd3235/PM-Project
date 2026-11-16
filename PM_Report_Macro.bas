@@ -56,44 +56,45 @@ Option Explicit
 ' Generated and checked by scripts\check-toc.ps1 (add -Fix to rewrite).
 ' Reading order for a change: CORE first, then the section you touch.
 '
-' 10 sections, 78 procedures.
+' 10 sections, 79 procedures.
 ' Public (outside callers): BuildManagerTabs, CreateEmailFromReport, EditCCEmails,
-'        EditEmailTemplate, GenerateReportEmail, LogPath, RebuildStartSheet, RunReport,
-'        SetupEmailButtons, SetupGenerateEmailButton, SetupReportButton
+'        EditEmailTemplate, GenerateManagerEmail, GenerateReportEmail, LogPath,
+'        RebuildStartSheet, RunReport, SetupEmailButtons, SetupGenerateEmailButton,
+'        SetupReportButton
 '
 '   #  SECTION (line)                          procedures
 '
-'   [  131] INTERACTIVE ENTRY (button)
+'   [  132] INTERACTIVE ENTRY (button)
 '        SetupReportButton, SetupEmailButtons, SetupGenerateEmailButton, GenerateReportEmail,
 '        RebuildStartSheet, BuildManagerTabs
-'   [  415] CORE (host-neutral)
+'   [  416] CORE (host-neutral)
 '        RunReport
-'   [  784] HOST / DIALOG HELPERS
+'   [  785] HOST / DIALOG HELPERS
 '        PickSourceFile, PickOutputFolder, SetStatus
-'   [  829] RUN LOG
+'   [  830] RUN LOG
 '        LogReset, LogOpen, LogLine, LogStage, LogPath, LogErr, DebugWriteLine, FastModeOn
-'   [  981] WORKBOOK / SHEET SETUP
+'   [  982] WORKBOOK / SHEET SETUP
 '        GetOrCreateStartSheet, AddStartStep, AddStartBullet, PositionStartLogo,
 '        FindSourceWorksheet, LoadSourceIntoRawData, GetOrCreateRawSheet,
 '        GetOrCreateSettingsSheet, GetRememberedOutputFolder, SaveOutputFolder
-'   [ 1336] PATH / STATE HELPERS
+'   [ 1337] PATH / STATE HELPERS
 '        FolderExists, NormalizeFolder, GetUniqueOutputPath, RestoreExcelState
-'   [ 1419] DATA / FORMAT HELPERS
+'   [ 1420] DATA / FORMAT HELPERS
 '        BuildOutputArray, GetHeaderArray, CopyRowFormats, SortManagersByLastName, LastNameKey,
 '        FindHeaderRow, FindHeaderColumn, LastUsedRow, LastUsedColumn, SheetExists,
 '        SafeSheetName, SafeStr, FindManager, GetOrCreateOutputSheet, UniqueSheetName
-'   [ 1677] PRIOR REPORT COMPARISON
+'   [ 1678] PRIOR REPORT COMPARISON
 '        DetectPriorReport, PriorNameOverlap, SortPathsNewestFirst, LoadPriorComparison,
 '        IsManagerTab, FindHeaderRowForSingle, NormalizeName, PriorNameExists, CountDiff,
 '        PriorMgrCount
-'   [ 1983] OUTPUT FORMATTING
+'   [ 1984] OUTPUT FORMATTING
 '        FormatManagerSheet, HideUnusedCells, CountInSheet, AddPolishedCard,
 '        AddPolishedTextCard, ChangeColor, ApplyReaderFriendlyFormatting
-'   [ 2366] DASHBOARD
+'   [ 2386] DASHBOARD
 '        BuildDashboard, ColorReportTabs, AddManagerChart, WriteTableHeader,
 '        GetOrCreateDashboardSheet, ResolveLogoPath, AddDashboardLogo, PositionDashboardLogo,
 '        SortByColumnA, CreateEmailFromReport, GetEmailTemplate, GetCCEmails, EditEmailTemplate,
-'        EditCCEmails
+'        EditCCEmails, GenerateManagerEmail
 '
 ' ============================================================
 Private Const RAW_SHEET As String = "Raw Data"
@@ -2161,7 +2162,27 @@ Private Sub FormatManagerSheet(ws As Worksheet, ByVal manager As String, _
     ' beyond the data columns are hidden) so the tab shows only the report
     ' - nothing else is visible, on screen or in a screenshot.
     HideUnusedCells ws, lastRow, lastCol
+    ' Add Generate Email button at top-right of the tab
+    On Error Resume Next
+    ws.Shapes("BtnGenEmail").Delete
+    On Error GoTo LocalFail
+    Dim btnShp As Shape
+    Set btnShp = ws.Shapes.AddShape(5, ws.Range("G1").Left, ws.Range("A1").Top + 2, 120, 24)
+    btnShp.Name = "BtnGenEmail"
+    With btnShp
+        .Fill.ForeColor.RGB = RGB(34, 139, 34)
+        .Fill.Solid
+        .TextFrame.Characters.Text = "Generate Email"
+        .TextFrame.HorizontalAlignment = xlCenter
+        .TextFrame.VerticalAlignment = xlCenter
+        .TextFrame.Characters.Font.Size = 9
+        .TextFrame.Characters.Font.Bold = True
+        .TextFrame.Characters.Font.Color = RGB(255, 255, 255)
+        .OnAction = "'" & ThisWorkbook.Name & "'!GenerateManagerEmail"
+    End With
+
     Exit Sub
+
 LocalFail:
     LogErr "FormatManagerSheet"
 End Sub
@@ -3161,4 +3182,46 @@ Public Sub EditCCEmails()
     Exit Sub
 LocalFail:
     LogErr "EditCCEmails"
+End Sub
+
+Public Sub GenerateManagerEmail()
+    On Error GoTo LocalFail
+    Dim ws As Worksheet
+    Set ws = ActiveSheet
+    If ws Is Nothing Then
+        MsgBox "No sheet selected.", vbExclamation
+        Exit Sub
+    End If
+    ws.UsedRange.Copy
+    Dim olApp As Object, olMail As Object
+    Dim wdDoc As Object, wdSel As Object
+    Dim templateText As String
+    Dim ccEmails As String
+    Dim subjectDate As String
+
+    subjectDate = Format(Date, "mm/dd/yyyy")
+    templateText = GetEmailTemplate()
+    ccEmails = GetCCEmails()
+
+    Set olApp = CreateObject("Outlook.Application")
+    Set olMail = olApp.CreateItem(0)
+
+    With olMail
+        .Subject = "PM Requests - " & ws.Name & " - " & subjectDate
+        If Len(ccEmails) > 0 Then .CC = ccEmails
+        .Display
+        Set wdDoc = .GetInspector.WordEditor
+        Set wdSel = wdDoc.Application.Selection
+        If Len(templateText) > 0 Then
+            wdSel.TypeText templateText
+            wdSel.TypeParagraph
+            wdSel.TypeParagraph
+        End If
+        wdSel.Paste
+    End With
+
+    LogLine "GenerateManagerEmail: email created for " & ws.Name
+    Exit Sub
+LocalFail:
+    LogErr "GenerateManagerEmail"
 End Sub
