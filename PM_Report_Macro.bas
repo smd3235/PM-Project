@@ -227,8 +227,8 @@ Public Sub SetupEmailButtons(Optional ByVal Silent As Boolean = False)
 
     btnWidth = 170
     btnHeight = 32
-    btnLeft = ws.Range("C16").Left + 4
-    btnTop = ws.Range("B16").Top + (ws.Rows(16).Height - btnHeight) / 2
+    btnLeft = ws.Range("C23").Left + 4
+    btnTop = ws.Range("B23").Top + (ws.Rows(23).Height - btnHeight) / 2
 
     Set shp = ws.Shapes.AddShape(5, btnLeft, btnTop, btnWidth, btnHeight)
     shp.Name = "BtnEditEmailTemplate"
@@ -298,8 +298,8 @@ Public Sub SetupGenerateEmailButton(Optional ByVal Silent As Boolean = False)
 
     btnWidth = 170
     btnHeight = 32
-    btnLeft = ws.Range("C16").Left + 4
-    btnTop = ws.Range("B17").Top + (ws.Rows(17).Height - btnHeight) / 2
+    btnLeft = ws.Range("C23").Left + 4
+    btnTop = ws.Range("B24").Top + (ws.Rows(24).Height - btnHeight) / 2
 
     Set shp = ws.Shapes.AddShape(5, btnLeft, btnTop, btnWidth, btnHeight)
     shp.Name = "BtnGenerateEmail"
@@ -2167,7 +2167,7 @@ Private Sub FormatManagerSheet(ws As Worksheet, ByVal manager As String, _
     ws.Shapes("BtnGenEmail").Delete
     On Error GoTo LocalFail
     Dim btnShp As Shape
-    Set btnShp = ws.Shapes.AddShape(5, ws.Range("G1").Left, ws.Range("A1").Top + 2, 120, 24)
+    Set btnShp = ws.Shapes.AddShape(5, ws.Range("K1").Left, ws.Range("A1").Top + 2, 120, 24)
     btnShp.Name = "BtnGenEmail"
     With btnShp
         .Fill.ForeColor.RGB = RGB(34, 139, 34)
@@ -3192,6 +3192,7 @@ Public Sub GenerateManagerEmail()
         MsgBox "No sheet selected.", vbExclamation
         Exit Sub
     End If
+    ws.UsedRange.WrapText = False
     ws.UsedRange.Copy
     Dim olApp As Object, olMail As Object
     Dim wdDoc As Object, wdSel As Object
