@@ -214,14 +214,14 @@ Public Sub SetupEmailButtons(Optional ByVal Silent As Boolean = False)
 
     On Error GoTo ButtonFail
 
-    action1 = "'" & ThisWorkbook.Name & "'!EditEmailTemplate"
+    action1 = "'" & ThisWorkbook.Name & "'!EditToEmails"
     action2 = "'" & ThisWorkbook.Name & "'!EditCCEmails"
 
     Set ws = GetOrCreateStartSheet()
 
     ' Remove old buttons if they exist
     On Error Resume Next
-    ws.Shapes("BtnEditEmailTemplate").Delete
+    ws.Shapes("BtnEditToEmails").Delete
     ws.Shapes("BtnEditCCEmails").Delete
     On Error GoTo ButtonFail
 
@@ -231,14 +231,14 @@ Public Sub SetupEmailButtons(Optional ByVal Silent As Boolean = False)
     btnTop = ws.Range("B23").Top + (ws.Rows(23).Height - btnHeight) / 2
 
     Set shp = ws.Shapes.AddShape(5, btnLeft, btnTop, btnWidth, btnHeight)
-    shp.Name = "BtnEditEmailTemplate"
+    shp.Name = "BtnEditToEmails"
     With shp
         .Fill.ForeColor.RGB = RGB(70, 130, 180)
         .Fill.Solid
         .Line.ForeColor.RGB = RGB(46, 96, 148)
         .Line.Weight = 1
         With .TextFrame
-            .Characters.Text = "Edit Email Template"
+            .Characters.Text = "Edit To Emails"
             .HorizontalAlignment = xlCenter
             .VerticalAlignment = xlCenter
             .Characters.Font.Name = "Segoe UI"
@@ -3028,11 +3028,13 @@ Public Sub CreateEmailFromReport(outWb As Workbook)
     Dim subjectDate As String
     Dim templateText As String
     Dim ccEmails As String
+    Dim toEmails As String
     Dim i As Long
 
     subjectDate = Format$(Date, "mm/dd/yyyy")
     templateText = GetEmailTemplate()
     ccEmails = GetCCEmails()
+    toEmails = GetToEmails()
 
     ' Find the dashboard sheet
     Set ws = Nothing
@@ -3065,6 +3067,7 @@ Public Sub CreateEmailFromReport(outWb As Workbook)
 
     With olMail
         .Subject = "Annual Equipment Preventative Maintenance " & subjectDate
+        If Len(toEmails) > 0 Then .To = toEmails
         If Len(ccEmails) > 0 Then .CC = ccEmails
         .Display
 
@@ -3150,23 +3153,6 @@ LocalFail:
     GetCCEmails = ""
 End Function
 
-Public Sub EditEmailTemplate()
-    On Error GoTo LocalFail
-    Dim current As String
-    current = GetEmailTemplate()
-    Dim newText As String
-    newText = InputBox("Edit the email template text:", "Email Template", current)
-    If Len(newText) > 0 Then
-        Dim ws As Worksheet
-        Set ws = ThisWorkbook.Sheets("EmailTemplate")
-        ws.Range("A1").Value = newText
-        MsgBox "Email template updated.", vbInformation, "Email Template"
-    End If
-    Exit Sub
-LocalFail:
-    LogErr "EditEmailTemplate"
-End Sub
-
 Public Sub EditCCEmails()
     On Error GoTo LocalFail
     Dim current As String
@@ -3183,6 +3169,35 @@ Public Sub EditCCEmails()
 LocalFail:
     LogErr "EditCCEmails"
 End Sub
+
+Public Sub EditToEmails()
+    On Error GoTo LocalFail
+    Dim current As String
+    current = GetToEmails()
+    Dim newTo As String
+    newTo = InputBox("Enter To email addresses (comma-separated):", "To Emails", current)
+    If Len(newTo) >= 0 Then
+        Dim ws As Worksheet
+        Set ws = ThisWorkbook.Sheets("EmailSettings")
+        ws.Range("B3").Value = newTo
+        MsgBox "To emails updated.", vbInformation, "To Emails"
+    End If
+    Exit Sub
+LocalFail:
+    LogErr "EditToEmails"
+End Sub
+
+Private Function GetToEmails() As String
+    On Error GoTo LocalFail
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets("EmailSettings")
+    GetToEmails = CStr(ws.Range("B3").Value)
+    Exit Function
+LocalFail:
+    LogErr "GetToEmails"
+    GetToEmails = ""
+End Function
+
 
 Public Sub GenerateManagerEmail()
     On Error GoTo LocalFail
@@ -3215,6 +3230,8 @@ Public Sub GenerateManagerEmail()
     Dim wsSettings As Worksheet
     Set wsSettings = ThisWorkbook.Sheets("EmailSettings")
     ccEmails = CStr(wsSettings.Range("B1").Value)
+    Dim toEmails As String
+    toEmails = CStr(wsSettings.Range("B3").Value)
 
     ' Read image path
     imagePath = CStr(wsSettings.Range("B2").Value)
