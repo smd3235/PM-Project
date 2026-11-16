@@ -362,6 +362,17 @@ LocalFail:
     LogErr "SetupSheetVisibility"
 End Sub
 
+Public Sub DoneEditing()
+    On Error GoTo LocalFail
+    If ActiveSheet.Name = "EmailSettings" Or ActiveSheet.Name = "EmailTemplate" Then
+        ActiveSheet.Visible = xlSheetHidden
+    End If
+    ThisWorkbook.Sheets("START HERE").Activate
+    Exit Sub
+LocalFail:
+    LogErr "DoneEditing"
+End Sub
+
 Public Sub RebuildStartSheet()
     SetupSheetVisibility
     SetupReportButton True
@@ -3103,6 +3114,10 @@ Public Sub CreateEmailFromReport(outWb As Workbook)
     End With
 
     LogLine "CreateEmailFromReport: email created and displayed"
+    On Error Resume Next
+    ThisWorkbook.Sheets("EmailSettings").Visible = xlSheetHidden
+    ThisWorkbook.Sheets("EmailTemplate").Visible = xlSheetHidden
+    On Error GoTo LocalFail
     Exit Sub
 
 LocalFail:
@@ -3293,6 +3308,10 @@ Public Sub GenerateManagerEmail()
     End With
 
     LogLine "GenerateManagerEmail: email created for " & ws.Name
+    On Error Resume Next
+    ThisWorkbook.Sheets("EmailSettings").Visible = xlSheetHidden
+    ThisWorkbook.Sheets("EmailTemplate").Visible = xlSheetHidden
+    On Error GoTo LocalFail
     Exit Sub
 
 LocalFail:
