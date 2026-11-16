@@ -3194,15 +3194,26 @@ Public Sub GenerateManagerEmail()
     End If
     ws.UsedRange.WrapText = False
     ws.UsedRange.Copy
+
     Dim olApp As Object, olMail As Object
     Dim wdDoc As Object, wdSel As Object
     Dim templateText As String
     Dim ccEmails As String
+    Dim imagePath As String
     Dim subjectDate As String
 
     subjectDate = Format(Date, "mm/dd/yyyy")
     templateText = GetEmailTemplate()
     ccEmails = GetCCEmails()
+
+    ' Get image path from EmailSettings B2
+    On Error Resume Next
+    Dim wsSettings As Worksheet
+    Set wsSettings = ThisWorkbook.Sheets("EmailSettings")
+    If Not wsSettings Is Nothing Then
+        imagePath = CStr(wsSettings.Range("B2").Value)
+    End If
+    On Error GoTo LocalFail
 
     Set olApp = CreateObject("Outlook.Application")
     Set olMail = olApp.CreateItem(0)
@@ -3210,19 +3221,43 @@ Public Sub GenerateManagerEmail()
     With olMail
         .Subject = "PM Requests - " & subjectDate
         If Len(ccEmails) > 0 Then .CC = ccEmails
+
+        ' Embed image if path exists
+        Dim hasImage As Boolean
+        hasImage = False
+        If Len(imagePath) > 0 Then
+            If Dir(imagePath) <> "" Then
+                Dim att As Object
+                Set att = .Attachments.Add(imagePath)
+                att.PropertyAccessor.SetProperty "http://schemas.microsoft.com/mapi/proptag/0x370E001F", "image/jpeg"
+                att.PropertyAccessor.SetProperty "http://schemas.microsoft.com/mapi/proptag/0x3712001F", "emailImage"
+                hasImage = True
+            End If
+        End If
+
         .Display
         Set wdDoc = .GetInspector.WordEditor
         Set wdSel = wdDoc.Application.Selection
+
         If Len(templateText) > 0 Then
             wdSel.TypeText templateText
             wdSel.TypeParagraph
             wdSel.TypeParagraph
         End If
+
+        ' Insert image placeholder if embedded
+        If hasImage Then
+            wdSel.TypeText "[Image: see attached]"
+            wdSel.TypeParagraph
+            wdSel.TypeParagraph
+        End If
+
         wdSel.Paste
     End With
 
     LogLine "GenerateManagerEmail: email created for " & ws.Name
     Exit Sub
+
 LocalFail:
     LogErr "GenerateManagerEmail"
 End Sub
