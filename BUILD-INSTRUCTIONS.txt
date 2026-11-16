@@ -1,0 +1,63 @@
+﻿WORK-PC BUILD INSTRUCTIONS (Macro-Free Template + VBA Modules)
+============================================================
+
+PREREQUISITES
+-------------
+- Desktop Microsoft Excel (Windows/Mac). Web/Online Excel cannot run macros.
+- A local, writable folder (e.g. C:\Project\).
+- Follow your organization's macro/Trusted Location policy.
+
+STEP 1 - DOWNLOAD & EXTRACT
+-----------------------------
+1. Download the ZIP from GitHub:
+   - Open the file on GitHub and click "Download raw file", OR
+   - Use the raw link.
+2. Extract the ZIP to a local writable folder (e.g. C:\Project\).
+
+STEP 2 - UNBLOCK FILES (IF NEEDED)
+-----------------------------------
+Downloaded files may carry "Mark of the Web" and be blocked by Windows/Org macro
+security ("Microsoft has blocked macros...").
+- Right-click each file -> Properties -> check "Unblock" -> Apply, OR
+- PowerShell (run from the extracted folder):
+      Get-ChildItem -Path . -File | Unblock-File
+  (per your org policy).
+
+STEP 3 - OPEN THE MACRO-FREE TEMPLATE
+--------------------------------------
+1. Open "Template (No Macros).xlsx" in desktop Excel.
+2. This workbook has the same layout/sheets/button(s) as the final template but
+   contains NO VBA project.
+
+STEP 4 - IMPORT ALL VBA MODULES
+--------------------------------
+1. Press Alt+F11 to open the VBA Editor.
+2. File -> Import File...
+3. Import ALL module files (.bas / .cls / .frm) from the extracted folder.
+   - Do NOT import only one module.
+   - If prompted to replace existing modules, confirm Yes.
+4. Confirm that any button(s) are assigned to the correct macro(s).
+   - (Right-click button -> Assign Macro... if needed.)
+
+STEP 5 - SAVE AS MACRO-ENABLED WORKBOOK
+----------------------------------------
+1. File -> Save As.
+2. Save as type: Excel Macro-Enabled Workbook (*.xlsm).
+3. Save in a local/trusted folder.
+4. Turn AutoSave OFF or use "Save a Copy" if needed.
+   (VBA cannot be saved in .xlsx.)
+
+STEP 6 - RUN
+------------
+1. Close and reopen the .xlsm.
+2. Enable macros if prompted.
+3. Run the report (button or macro entry point).
+
+NOTES
+-----
+- A prebuilt .xlsm may still be blocked when downloaded; the macro-free base +
+  modules ZIP is the reliable fallback for locked-down work machines.
+- Keep/run from a local writable folder if the tool writes outputs/logs next to
+  the workbook; follow org macro/Trusted Location policy.
+- Do not include sensitive/PHI data in the repo.
+- Keep the ZIP and module files updated whenever the template/VBA changes.
