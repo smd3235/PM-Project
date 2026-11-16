@@ -56,41 +56,44 @@ Option Explicit
 ' Generated and checked by scripts\check-toc.ps1 (add -Fix to rewrite).
 ' Reading order for a change: CORE first, then the section you touch.
 '
-' 10 sections, 71 procedures.
-' Public (outside callers): BuildManagerTabs, CreateEmailFromReport, LogPath, RebuildStartSheet,
-'        RunReport, SetupReportButton
+' 10 sections, 78 procedures.
+' Public (outside callers): BuildManagerTabs, CreateEmailFromReport, EditCCEmails,
+'        EditEmailTemplate, GenerateReportEmail, LogPath, RebuildStartSheet, RunReport,
+'        SetupEmailButtons, SetupGenerateEmailButton, SetupReportButton
 '
 '   #  SECTION (line)                          procedures
 '
-'   [  128] INTERACTIVE ENTRY (button)
-'        SetupReportButton, RebuildStartSheet, BuildManagerTabs
-'   [  270] CORE (host-neutral)
+'   [  131] INTERACTIVE ENTRY (button)
+'        SetupReportButton, SetupEmailButtons, SetupGenerateEmailButton, GenerateReportEmail,
+'        RebuildStartSheet, BuildManagerTabs
+'   [  415] CORE (host-neutral)
 '        RunReport
-'   [  639] HOST / DIALOG HELPERS
+'   [  784] HOST / DIALOG HELPERS
 '        PickSourceFile, PickOutputFolder, SetStatus
-'   [  684] RUN LOG
+'   [  829] RUN LOG
 '        LogReset, LogOpen, LogLine, LogStage, LogPath, LogErr, DebugWriteLine, FastModeOn
-'   [  836] WORKBOOK / SHEET SETUP
+'   [  981] WORKBOOK / SHEET SETUP
 '        GetOrCreateStartSheet, AddStartStep, AddStartBullet, PositionStartLogo,
 '        FindSourceWorksheet, LoadSourceIntoRawData, GetOrCreateRawSheet,
 '        GetOrCreateSettingsSheet, GetRememberedOutputFolder, SaveOutputFolder
-'   [ 1191] PATH / STATE HELPERS
+'   [ 1336] PATH / STATE HELPERS
 '        FolderExists, NormalizeFolder, GetUniqueOutputPath, RestoreExcelState
-'   [ 1274] DATA / FORMAT HELPERS
+'   [ 1419] DATA / FORMAT HELPERS
 '        BuildOutputArray, GetHeaderArray, CopyRowFormats, SortManagersByLastName, LastNameKey,
 '        FindHeaderRow, FindHeaderColumn, LastUsedRow, LastUsedColumn, SheetExists,
 '        SafeSheetName, SafeStr, FindManager, GetOrCreateOutputSheet, UniqueSheetName
-'   [ 1532] PRIOR REPORT COMPARISON
+'   [ 1677] PRIOR REPORT COMPARISON
 '        DetectPriorReport, PriorNameOverlap, SortPathsNewestFirst, LoadPriorComparison,
 '        IsManagerTab, FindHeaderRowForSingle, NormalizeName, PriorNameExists, CountDiff,
 '        PriorMgrCount
-'   [ 1838] OUTPUT FORMATTING
+'   [ 1983] OUTPUT FORMATTING
 '        FormatManagerSheet, HideUnusedCells, CountInSheet, AddPolishedCard,
 '        AddPolishedTextCard, ChangeColor, ApplyReaderFriendlyFormatting
-'   [ 2221] DASHBOARD
+'   [ 2366] DASHBOARD
 '        BuildDashboard, ColorReportTabs, AddManagerChart, WriteTableHeader,
 '        GetOrCreateDashboardSheet, ResolveLogoPath, AddDashboardLogo, PositionDashboardLogo,
-'        SortByColumnA, CreateEmailFromReport
+'        SortByColumnA, CreateEmailFromReport, GetEmailTemplate, GetCCEmails, EditEmailTemplate,
+'        EditCCEmails
 '
 ' ============================================================
 Private Const RAW_SHEET As String = "Raw Data"
@@ -202,8 +205,150 @@ End Sub
 
 ' Public entry point for sync_template.ps1: rebuild START HERE + button so the
 ' shipped workbook matches the current module without a full report run.
+Public Sub SetupEmailButtons(Optional ByVal Silent As Boolean = False)
+    Dim ws As Worksheet, shp As Shape
+    Dim action1 As String, action2 As String
+    Dim btnWidth As Double, btnHeight As Double
+    Dim btnLeft As Double, btnTop As Double
+
+    On Error GoTo ButtonFail
+
+    action1 = "'" & ThisWorkbook.Name & "'!EditEmailTemplate"
+    action2 = "'" & ThisWorkbook.Name & "'!EditCCEmails"
+
+    Set ws = GetOrCreateStartSheet()
+
+    ' Remove old buttons if they exist
+    On Error Resume Next
+    ws.Shapes("BtnEditEmailTemplate").Delete
+    ws.Shapes("BtnEditCCEmails").Delete
+    On Error GoTo ButtonFail
+
+    btnWidth = 170
+    btnHeight = 32
+    btnLeft = ws.Range("C16").Left + 4
+    btnTop = ws.Range("B16").Top + (ws.Rows(16).Height - btnHeight) / 2
+
+    Set shp = ws.Shapes.AddShape(5, btnLeft, btnTop, btnWidth, btnHeight)
+    shp.Name = "BtnEditEmailTemplate"
+    With shp
+        .Fill.ForeColor.RGB = RGB(70, 130, 180)
+        .Fill.Solid
+        .Line.ForeColor.RGB = RGB(46, 96, 148)
+        .Line.Weight = 1
+        With .TextFrame
+            .Characters.Text = "Edit Email Template"
+            .HorizontalAlignment = xlCenter
+            .VerticalAlignment = xlCenter
+            .Characters.Font.Name = "Segoe UI"
+            .Characters.Font.Size = 10
+            .Characters.Font.Bold = True
+            .Characters.Font.Color = RGB(255, 255, 255)
+        End With
+        .Placement = xlMove
+    End With
+    shp.OnAction = action1
+
+    btnLeft = btnLeft + btnWidth + 10
+    Set shp = ws.Shapes.AddShape(5, btnLeft, btnTop, btnWidth, btnHeight)
+    shp.Name = "BtnEditCCEmails"
+    With shp
+        .Fill.ForeColor.RGB = RGB(70, 130, 180)
+        .Fill.Solid
+        .Line.ForeColor.RGB = RGB(46, 96, 148)
+        .Line.Weight = 1
+        With .TextFrame
+            .Characters.Text = "Edit CC Emails"
+            .HorizontalAlignment = xlCenter
+            .VerticalAlignment = xlCenter
+            .Characters.Font.Name = "Segoe UI"
+            .Characters.Font.Size = 10
+            .Characters.Font.Bold = True
+            .Characters.Font.Color = RGB(255, 255, 255)
+        End With
+        .Placement = xlMove
+    End With
+    shp.OnAction = action2
+
+    If Not Silent Then MsgBox "Email setup buttons are ready.", vbInformation
+    Exit Sub
+
+ButtonFail:
+    LogErr "SetupEmailButtons"
+    If Not Silent Then MsgBox "I could not install the email buttons." & vbCrLf & Err.Description, vbCritical
+End Sub
+
+' Also add a button to generate the email
+Public Sub SetupGenerateEmailButton(Optional ByVal Silent As Boolean = False)
+    Dim ws As Worksheet, shp As Shape
+    Dim action As String
+    Dim btnWidth As Double, btnHeight As Double
+    Dim btnLeft As Double, btnTop As Double
+
+    On Error GoTo ButtonFail
+
+    action = "'" & ThisWorkbook.Name & "'!GenerateReportEmail"
+
+    Set ws = GetOrCreateStartSheet()
+
+    On Error Resume Next
+    ws.Shapes("BtnGenerateEmail").Delete
+    On Error GoTo ButtonFail
+
+    btnWidth = 170
+    btnHeight = 32
+    btnLeft = ws.Range("C16").Left + 4
+    btnTop = ws.Range("B17").Top + (ws.Rows(17).Height - btnHeight) / 2
+
+    Set shp = ws.Shapes.AddShape(5, btnLeft, btnTop, btnWidth, btnHeight)
+    shp.Name = "BtnGenerateEmail"
+    With shp
+        .Fill.ForeColor.RGB = RGB(34, 139, 34)
+        .Fill.Solid
+        .Line.ForeColor.RGB = RGB(0, 100, 0)
+        .Line.Weight = 1
+        With .TextFrame
+            .Characters.Text = "Generate Email"
+            .HorizontalAlignment = xlCenter
+            .VerticalAlignment = xlCenter
+            .Characters.Font.Name = "Segoe UI"
+            .Characters.Font.Size = 10
+            .Characters.Font.Bold = True
+            .Characters.Font.Color = RGB(255, 255, 255)
+        End With
+        .Placement = xlMove
+    End With
+    shp.OnAction = action
+
+    If Not Silent Then MsgBox "Generate Email button is ready.", vbInformation
+    Exit Sub
+
+ButtonFail:
+    LogErr "SetupGenerateEmailButton"
+    If Not Silent Then MsgBox "I could not install the button." & vbCrLf & Err.Description, vbCritical
+End Sub
+
+Public Sub GenerateReportEmail()
+    On Error GoTo LocalFail
+    Dim wb As Workbook
+    ' Use the most recent report if available, otherwise prompt
+    Dim reportPath As String
+    reportPath = InputBox("Path to the report .xlsx to email:", "Generate Email", "")
+    If Len(reportPath) = 0 Then Exit Sub
+    If Dir(reportPath) = "" Then
+        MsgBox "File not found: " & reportPath, vbCritical
+        Exit Sub
+    End If
+    Set wb = Workbooks.Open(reportPath)
+    CreateEmailFromReport wb
+    Exit Sub
+LocalFail:
+    LogErr "GenerateReportEmail"
+End Sub
 Public Sub RebuildStartSheet()
     SetupReportButton True
+    SetupEmailButtons True
+    SetupGenerateEmailButton True
 End Sub
 
 
@@ -2860,9 +3005,13 @@ Public Sub CreateEmailFromReport(outWb As Workbook)
     Dim rng As Range
     Dim wdDoc As Object, wdSel As Object
     Dim subjectDate As String
+    Dim templateText As String
+    Dim ccEmails As String
     Dim i As Long
 
     subjectDate = Format$(Date, "mm/dd/yyyy")
+    templateText = GetEmailTemplate()
+    ccEmails = GetCCEmails()
 
     ' Find the dashboard sheet
     Set ws = Nothing
@@ -2895,12 +3044,20 @@ Public Sub CreateEmailFromReport(outWb As Workbook)
 
     With olMail
         .Subject = "Annual Equipment Preventative Maintenance " & subjectDate
+        If Len(ccEmails) > 0 Then .CC = ccEmails
         .Display
 
         Set wdDoc = .GetInspector.WordEditor
         Set wdSel = wdDoc.Application.Selection
 
-        wdSel.EndKey 6
+        ' Write template text
+        If Len(templateText) > 0 Then
+            wdSel.TypeText templateText
+            wdSel.TypeParagraph
+            wdSel.TypeParagraph
+        End If
+
+        ' Paste Excel data with source formatting
         wdSel.Paste
     End With
 
@@ -2909,4 +3066,99 @@ Public Sub CreateEmailFromReport(outWb As Workbook)
 
 LocalFail:
     LogErr "CreateEmailFromReport"
+End Sub
+' ===========================================================================
+' EMAIL TEMPLATE - stored inside the workbook (hidden sheet)
+' ===========================================================================
+' Contracts:
+'   * EmailTemplate sheet holds the template body text in A1 (merged).
+'   * Settings sheet holds CC emails in B2 (comma-separated).
+'   * EditEmailTemplate() - prompts user to edit the template text.
+'   * EditCCEmails() - prompts user to edit the CC email list.
+'   * CreateEmailFromReport() reads template + CC from the workbook.
+' ===========================================================================
+
+Private Function GetEmailTemplate() As String
+    On Error GoTo LocalFail
+    Dim ws As Worksheet
+    Set ws = Nothing
+    On Error Resume Next
+    Set ws = ThisWorkbook.Sheets("EmailTemplate")
+    On Error GoTo LocalFail
+    If ws Is Nothing Then
+        ' Create the sheet
+        Set ws = ThisWorkbook.Sheets.Add
+        ws.Name = "EmailTemplate"
+        ws.Visible = xlSheetVeryHidden
+        ws.Range("A1").Value = "Hi" & vbCrLf & vbCrLf & _
+            "Our records indicate that the following patient's equipment has been on an " & _
+            "active treatment plan over 10 months. Please submit an Annual Equipment " & _
+            "Preventative Maintenance Form in GoCanvas and perform a PM on this equipment " & _
+            "within one week of this email." & vbCrLf & vbCrLf & _
+            "* if the equipment was purchased no PM required let me know to remove from my file." & vbCrLf & _
+            "* If an exchange of equipment has taken place, please let us know so we can update the PM due date." & vbCrLf & _
+            "* If it is in pending pickup status once it is picked up it will drop off my list." & vbCrLf & _
+            "* If you think you have completed this for any of the patients listed below let me know and I will double check." & vbCrLf
+        ws.Range("A1").WrapText = True
+    End If
+    GetEmailTemplate = CStr(ws.Range("A1").Value)
+    Exit Function
+LocalFail:
+    LogErr "GetEmailTemplate"
+    GetEmailTemplate = ""
+End Function
+
+Private Function GetCCEmails() As String
+    On Error GoTo LocalFail
+    Dim ws As Worksheet
+    Set ws = Nothing
+    On Error Resume Next
+    Set ws = ThisWorkbook.Sheets("EmailSettings")
+    On Error GoTo LocalFail
+    If ws Is Nothing Then
+        Set ws = ThisWorkbook.Sheets.Add
+        ws.Name = "EmailSettings"
+        ws.Visible = xlSheetVeryHidden
+        ws.Range("A1").Value = "CC Emails (comma-separated):"
+        ws.Range("B1").Value = ""
+    End If
+    GetCCEmails = CStr(ws.Range("B1").Value)
+    Exit Function
+LocalFail:
+    LogErr "GetCCEmails"
+    GetCCEmails = ""
+End Function
+
+Public Sub EditEmailTemplate()
+    On Error GoTo LocalFail
+    Dim current As String
+    current = GetEmailTemplate()
+    Dim newText As String
+    newText = InputBox("Edit the email template text:", "Email Template", current)
+    If Len(newText) > 0 Then
+        Dim ws As Worksheet
+        Set ws = ThisWorkbook.Sheets("EmailTemplate")
+        ws.Range("A1").Value = newText
+        MsgBox "Email template updated.", vbInformation, "Email Template"
+    End If
+    Exit Sub
+LocalFail:
+    LogErr "EditEmailTemplate"
+End Sub
+
+Public Sub EditCCEmails()
+    On Error GoTo LocalFail
+    Dim current As String
+    current = GetCCEmails()
+    Dim newCC As String
+    newCC = InputBox("Enter CC email addresses (comma-separated):", "CC Emails", current)
+    If Len(newCC) >= 0 Then
+        Dim ws As Worksheet
+        Set ws = ThisWorkbook.Sheets("EmailSettings")
+        ws.Range("B1").Value = newCC
+        MsgBox "CC emails updated.", vbInformation, "CC Emails"
+    End If
+    Exit Sub
+LocalFail:
+    LogErr "EditCCEmails"
 End Sub
