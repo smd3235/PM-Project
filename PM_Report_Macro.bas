@@ -3207,7 +3207,7 @@ Public Sub GenerateManagerEmail()
     Set olMail = olApp.CreateItem(0)
 
     With olMail
-        .Subject = "PM Requests - " & ws.Name & " - " & subjectDate
+        .Subject = "PM Requests - " & subjectDate
         If Len(ccEmails) > 0 Then .CC = ccEmails
         .Display
         Set wdDoc = .GetInspector.WordEditor
