@@ -346,7 +346,24 @@ Public Sub GenerateReportEmail()
 LocalFail:
     LogErr "GenerateReportEmail"
 End Sub
+Public Sub SetupSheetVisibility()
+    On Error GoTo LocalFail
+    Dim ws As Worksheet
+    ' Move START HERE to first position
+    ThisWorkbook.Sheets("START HERE").Move Before:=ThisWorkbook.Sheets(1)
+    ' Hide all sheets except START HERE
+    For Each ws In ThisWorkbook.Sheets
+        If ws.Name <> "START HERE" Then
+            ws.Visible = xlSheetHidden
+        End If
+    Next ws
+    Exit Sub
+LocalFail:
+    LogErr "SetupSheetVisibility"
+End Sub
+
 Public Sub RebuildStartSheet()
+    SetupSheetVisibility
     SetupReportButton True
     SetupEmailButtons True
     SetupGenerateEmailButton True
@@ -3155,16 +3172,9 @@ End Function
 
 Public Sub EditCCEmails()
     On Error GoTo LocalFail
-    Dim current As String
-    current = GetCCEmails()
-    Dim newCC As String
-    newCC = InputBox("Enter CC email addresses (comma-separated):", "CC Emails", current)
-    If Len(newCC) >= 0 Then
-        Dim ws As Worksheet
-        Set ws = ThisWorkbook.Sheets("EmailSettings")
-        ws.Range("B1").Value = newCC
-        MsgBox "CC emails updated.", vbInformation, "CC Emails"
-    End If
+    ThisWorkbook.Sheets("EmailSettings").Visible = xlSheetVisible
+    ThisWorkbook.Sheets("EmailSettings").Activate
+    ThisWorkbook.Sheets("EmailSettings").Range("B1").Select
     Exit Sub
 LocalFail:
     LogErr "EditCCEmails"
@@ -3172,16 +3182,9 @@ End Sub
 
 Public Sub EditToEmails()
     On Error GoTo LocalFail
-    Dim current As String
-    current = GetToEmails()
-    Dim newTo As String
-    newTo = InputBox("Enter To email addresses (comma-separated):", "To Emails", current)
-    If Len(newTo) >= 0 Then
-        Dim ws As Worksheet
-        Set ws = ThisWorkbook.Sheets("EmailSettings")
-        ws.Range("B3").Value = newTo
-        MsgBox "To emails updated.", vbInformation, "To Emails"
-    End If
+    ThisWorkbook.Sheets("EmailSettings").Visible = xlSheetVisible
+    ThisWorkbook.Sheets("EmailSettings").Activate
+    ThisWorkbook.Sheets("EmailSettings").Range("B3").Select
     Exit Sub
 LocalFail:
     LogErr "EditToEmails"
