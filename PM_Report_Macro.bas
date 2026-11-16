@@ -56,41 +56,41 @@ Option Explicit
 ' Generated and checked by scripts\check-toc.ps1 (add -Fix to rewrite).
 ' Reading order for a change: CORE first, then the section you touch.
 '
-' 10 sections, 67 procedures.
-' Public (outside callers): BuildManagerTabs, LogPath, RebuildStartSheet, RunReport,
-'        SetupReportButton
+' 10 sections, 71 procedures.
+' Public (outside callers): BuildManagerTabs, CreateEmailFromReport, LogPath, RebuildStartSheet,
+'        RunReport, SetupReportButton
 '
 '   #  SECTION (line)                          procedures
 '
-'   [  119] INTERACTIVE ENTRY (button)
+'   [  128] INTERACTIVE ENTRY (button)
 '        SetupReportButton, RebuildStartSheet, BuildManagerTabs
-'   [  260] CORE (host-neutral)
+'   [  270] CORE (host-neutral)
 '        RunReport
-'   [  546] HOST / DIALOG HELPERS
+'   [  639] HOST / DIALOG HELPERS
 '        PickSourceFile, PickOutputFolder, SetStatus
-'   [  591] RUN LOG
-'        LogReset, LogOpen, LogLine, LogStage, LogPath, FastModeOn
-'   [  696] WORKBOOK / SHEET SETUP
+'   [  684] RUN LOG
+'        LogReset, LogOpen, LogLine, LogStage, LogPath, LogErr, DebugWriteLine, FastModeOn
+'   [  836] WORKBOOK / SHEET SETUP
 '        GetOrCreateStartSheet, AddStartStep, AddStartBullet, PositionStartLogo,
 '        FindSourceWorksheet, LoadSourceIntoRawData, GetOrCreateRawSheet,
 '        GetOrCreateSettingsSheet, GetRememberedOutputFolder, SaveOutputFolder
-'   [ 1012] PATH / STATE HELPERS
+'   [ 1191] PATH / STATE HELPERS
 '        FolderExists, NormalizeFolder, GetUniqueOutputPath, RestoreExcelState
-'   [ 1076] DATA / FORMAT HELPERS
+'   [ 1274] DATA / FORMAT HELPERS
 '        BuildOutputArray, GetHeaderArray, CopyRowFormats, SortManagersByLastName, LastNameKey,
 '        FindHeaderRow, FindHeaderColumn, LastUsedRow, LastUsedColumn, SheetExists,
 '        SafeSheetName, SafeStr, FindManager, GetOrCreateOutputSheet, UniqueSheetName
-'   [ 1279] PRIOR REPORT COMPARISON
+'   [ 1532] PRIOR REPORT COMPARISON
 '        DetectPriorReport, PriorNameOverlap, SortPathsNewestFirst, LoadPriorComparison,
 '        IsManagerTab, FindHeaderRowForSingle, NormalizeName, PriorNameExists, CountDiff,
 '        PriorMgrCount
-'   [ 1545] OUTPUT FORMATTING
-'        FormatManagerSheet, CountInSheet, AddPolishedCard, AddPolishedTextCard, ChangeColor,
-'        ApplyReaderFriendlyFormatting
-'   [ 1875] DASHBOARD
+'   [ 1838] OUTPUT FORMATTING
+'        FormatManagerSheet, HideUnusedCells, CountInSheet, AddPolishedCard,
+'        AddPolishedTextCard, ChangeColor, ApplyReaderFriendlyFormatting
+'   [ 2221] DASHBOARD
 '        BuildDashboard, ColorReportTabs, AddManagerChart, WriteTableHeader,
 '        GetOrCreateDashboardSheet, ResolveLogoPath, AddDashboardLogo, PositionDashboardLogo,
-'        SortByColumnA
+'        SortByColumnA, CreateEmailFromReport
 '
 ' ============================================================
 Private Const RAW_SHEET As String = "Raw Data"
@@ -108,12 +108,21 @@ Private Const LOGO_FILE As String = "aoti-logo.png"
 Private Const LOGO_DIR As String = "documentation"
 Private Const SHEET_COL_WIDTH As Double = 16
 Private Const UI_FONT As String = "Segoe UI"
-Private Const MANAGER_LAST_COL As Long = 12
+Private Const MANAGER_LAST_COL As Long = 8
 
 ' Run-log state (must live in the declarations section, not between procedures).
 Private gLogPath As String
 Private gLogPrev As Double
 Private gLogT0 As Double
+
+' Realtime error-logging state (mirrors the Pending Pickup pattern).
+' mInReportRun  - true while RunReport is executing, so LogErr also hits the
+'                 per-run log. False means only the global debug log is written.
+' mRunLogPath   - path to the current per-run log (mirrors gLogPath).
+' mDebugLogPath - path to the global debug log (appended across every run).
+Private mInReportRun As Boolean
+Private mRunLogPath As String
+Private mDebugLogPath As String
 
 
 ' ==================== INTERACTIVE ENTRY (button) ====================
@@ -186,6 +195,7 @@ Public Sub SetupReportButton(Optional ByVal Silent As Boolean = False)
     Exit Sub
 
 ButtonFail:
+    LogErr "SetupReportButton"
     If Not Silent Then MsgBox "I could not install the button." & vbCrLf & Err.Description, vbCritical
 End Sub
 
@@ -200,7 +210,6 @@ End Sub
 Public Sub BuildManagerTabs()
     Dim sourcePath As Variant
     Dim outputFolder As String
-    Dim priorPath As String
     Dim resultParts() As String
     Dim result As String
 
@@ -232,7 +241,7 @@ Public Sub BuildManagerTabs()
     SetStatus "Step 2 of 3 - Building the PM Requests report..."
     ' RunReport owns the log (one file per run); logging here would write the
     ' picker lines into the previous run's file.
-    result = RunReport(CStr(sourcePath), outputFolder, priorPath)
+    result = RunReport(CStr(sourcePath), outputFolder, "")
 
     resultParts = Split(result, "|")
     If UBound(resultParts) >= 0 Then
@@ -250,6 +259,7 @@ Public Sub BuildManagerTabs()
     Exit Sub
 
 CleanFail:
+    LogErr "BuildManagerTabs"
     LogLine "!!! ERROR " & CStr(Err.Number) & ": " & Err.Description & "   [BuildManagerTabs]"
     SetStatus ""
     MsgBox "The PM report could not be created." & vbCrLf & vbCrLf & _
@@ -301,8 +311,12 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
     Dim repNames As Collection
     Dim repCounts() As Long, repN As Long
     Dim newPMs As Long, nameCol As Long
-    Dim repName As String
+    Dim repName As String, nm As String
     Dim stage As String
+    Dim auditMissingDate As Long, auditMissingStatus As Long, auditFutureDate As Long
+    Dim auditOldDate As Long, auditDuplicateName As Long, auditMissingKey As Long
+    Dim seenNames As Collection, curName As String
+    Dim curStart As Variant, curStatus As Variant, curDate As Double, oldDateCutoff As Double
 
     On Error GoTo Fail
 
@@ -319,6 +333,7 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
     ' appended to the first run's file and reported that run's elapsed time.
     LogReset
     LogOpen outputFolder
+    mInReportRun = True
     LogLine "--- RunReport: source=" & sourcePath & "  prior=" & IIf(Len(priorPath) = 0, "(auto)", priorPath)
 
     oldCalc = -4135: oldScreen = False: oldEvents = False: oldAlerts = False
@@ -342,6 +357,10 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
     statusCol = FindHeaderColumn(raw, headerRow, STATUS_HEADER)
     lastRow = LastUsedRow(raw)
     lastCol = LastUsedColumn(raw)
+    ' Only the first MANAGER_LAST_COL columns belong on manager tabs; the
+    ' treatment-detail columns (PM date, end date, setup date, technician)
+    ' are source-only and are not carried into the report.
+    If lastCol > MANAGER_LAST_COL Then lastCol = MANAGER_LAST_COL
     LogLine "source sheet '" & raw.Name & "': headerRow=" & CStr(headerRow) & " lastRow=" & CStr(lastRow) & _
              " lastCol=" & CStr(lastCol) & " managerCol=" & CStr(managerCol) & " statusCol=" & CStr(statusCol)
 
@@ -363,6 +382,10 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
     nameCol = FindHeaderColumn(raw, headerRow, NAME_HEADER)
     lastRow = LastUsedRow(raw)
     lastCol = LastUsedColumn(raw)
+    ' Only the first MANAGER_LAST_COL columns belong on manager tabs; the
+    ' treatment-detail columns (PM date, end date, setup date, technician)
+    ' are source-only and are not carried into the report.
+    If lastCol > MANAGER_LAST_COL Then lastCol = MANAGER_LAST_COL
 
     SetStatus "Building manager tabs..."
 
@@ -380,6 +403,8 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
     ' error 94). Collection-based to avoid the Scripting.Dictionary COM
     ' dependency. Treatment Status is required in the export and carried into
     ' the report, but it no longer filters anything.
+    Set seenNames = New Collection
+    oldDateCutoff = CLng(DateSerial(Year(Date) - 5, Month(Date), Day(Date)))   ' 5 years ago
     For r = 2 To UBound(data, 1)
         manager = Trim$(SafeStr(data(r, managerCol)))
 
@@ -393,7 +418,10 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
                 Set rowsForManager = mgrRows(idx)
             End If
             rowsForManager.Add r
-            If nameCol > 0 Then mgrDataNames.Add NormalizeName(data(r, nameCol))
+            If nameCol > 0 Then
+                nm = NormalizeName(data(r, nameCol))
+                If Len(nm) > 0 Then mgrDataNames.Add nm
+            End If
             ' Rep totals (column A = Assigned Sales Representative). Counts live
             ' in a Long array because Collection items cannot be reassigned.
             repName = Trim$(SafeStr(data(r, 1)))
@@ -408,13 +436,60 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
                     repCounts(idx) = repCounts(idx) + 1
                 End If
             End If
+
+            ' ---- audit: missing pickup date (col 8) / future / very old ----
+            curStart = data(r, 8)
+            If IsEmpty(curStart) Then
+                auditMissingDate = auditMissingDate + 1
+            ElseIf IsDate(curStart) Then
+                curDate = CDbl(CDate(curStart))
+                If curDate > CDbl(Date) Then
+                    auditFutureDate = auditFutureDate + 1
+                ElseIf curDate < oldDateCutoff Then
+                    auditOldDate = auditOldDate + 1
+                End If
+            ElseIf IsNumeric(curStart) Then
+                ' Value2 returns dates as Double serials; IsDate misses them.
+                curDate = CDbl(curStart)
+                If curDate > CDbl(Date) Then
+                    auditFutureDate = auditFutureDate + 1
+                ElseIf curDate < oldDateCutoff Then
+                    auditOldDate = auditOldDate + 1
+                End If
+            Else
+                auditMissingDate = auditMissingDate + 1
+            End If
+
+            ' ---- audit: missing status (col 7) ----
+            curStatus = Trim$(SafeStr(data(r, 7)))
+            If Len(curStatus) = 0 Then auditMissingStatus = auditMissingStatus + 1
+
+            ' ---- audit: duplicate name (col 3) ----
+            If nameCol > 0 Then
+                curName = NormalizeName(data(r, nameCol))
+                If Len(curName) > 0 Then
+                    On Error Resume Next
+                    seenNames.Add curName, curName
+                    If Err.Number <> 0 Then
+                        auditDuplicateName = auditDuplicateName + 1
+                        Err.Clear
+                    End If
+                    On Error GoTo Fail
+                End If
+            End If
         Else
             skippedRows = skippedRows + 1
         End If
+
+        ' ---- audit: missing key (col 1 rep name blank) ----
+        If Len(Trim$(SafeStr(data(r, 1)))) = 0 Then auditMissingKey = auditMissingKey + 1
     Next r
     stage = "classified": LogStage "classified"
     LogLine "classified: managers=" & CStr(mgrNames.Count) & _
-            "  skipped(no manager)=" & CStr(skippedRows) & "  reps=" & CStr(repN)
+            "  skipped(no manager)=" & CStr(skippedRows) & "  reps=" & CStr(repN) & _
+            "  missingDate=" & CStr(auditMissingDate) & "  missingStatus=" & CStr(auditMissingStatus) & _
+            "  futureDate=" & CStr(auditFutureDate) & "  oldDate=" & CStr(auditOldDate) & _
+            "  duplicateName=" & CStr(auditDuplicateName) & "  missingKey=" & CStr(auditMissingKey)
     ' Weekly comparison: with no explicit prior, use the previous week's
     ' report found in the output folder (name overlap). An unreadable prior
     ' degrades to empty comparison data instead of failing the build.
@@ -449,6 +524,11 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
             "  priorPMs=" & CStr(priorPMs) & "  priorNames=" & CStr(priorNames.Count) & "  newPMs=" & CStr(newPMs)
 
     Set outWb = Workbooks.Add(xlWBATWorksheet)
+    ' Remove the default blank "Sheet1" so the report ships with only Dashboard,
+    ' manager tabs, and Raw Data - no orphan tab.
+    On Error Resume Next
+    outWb.Worksheets("Sheet1").Delete
+    On Error GoTo Fail
     firstOutput = True
     stage = "out workbook": LogStage "out workbook"
     If mgrNames.Count > 0 Then
@@ -493,6 +573,16 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
     ' Copy the loaded Raw Data sheet into the report (last tab).
     raw.Copy After:=outWb.Worksheets(outWb.Worksheets.Count)
     stage = "raw copied": LogStage "raw copied"
+
+    ' Block out unused cells on Raw Data so it shows only the copied data,
+    ' nothing else.
+    Dim rws As Worksheet
+    Set rws = outWb.Worksheets(outWb.Worksheets.Count)
+    If StrComp(rws.Name, RAW_SHEET, vbTextCompare) = 0 Then
+        Dim rLastRow As Long, rLastCol As Long
+        rLastRow = LastUsedRow(rws): rLastCol = LastUsedColumn(rws)
+        HideUnusedCells rws, rLastRow, rLastCol
+    End If
     ColorReportTabs outWb
     stage = "tabs colored": LogStage "tabs colored"
     ' Open the report the way the user wants to see it: maximized, on the
@@ -522,6 +612,7 @@ Public Function RunReport(ByVal sourcePath As String, ByVal outputFolder As Stri
     LogLine "=== RUN OK in " & Format$(Timer - gLogT0, "0.0") & "s"
 
     SetStatus ""
+    mInReportRun = False
     RestoreExcelState oldCalc, oldScreen, oldEvents, oldAlerts
     Exit Function
 
@@ -530,6 +621,7 @@ Fail:
     Dim errNo As Long, errDesc As String, errStage As String
     errNo = Err.Number: errDesc = Err.Description: errStage = stage
 
+    LogErr "RunReport"
     LogLine "!!! ERROR " & CStr(errNo) & ": " & errDesc & "   [stage: " & errStage & "]"
     LogLine "    last breadcrumb above is where it stopped."
 
@@ -537,6 +629,7 @@ Fail:
     If Not srcWb Is Nothing Then srcWb.Close SaveChanges:=False
     If Not outWb Is Nothing Then outWb.Close SaveChanges:=False
     SetStatus ""
+    mInReportRun = False
     RestoreExcelState oldCalc, oldScreen, oldEvents, oldAlerts
     On Error GoTo 0
     RunReport = "ERROR|" & CStr(errNo) & "|" & errDesc & " @ " & errStage
@@ -684,11 +777,58 @@ Public Function LogPath() As String
 End Function
 
 
+' ---- realtime error logging (one helper, used by every LocalFail handler) ----
+' Writes one line to BOTH logs:
+'   * macro-debug.log  - global, appended across every run (never rotated)
+'   * per-run log      - only when mInReportRun = True
+' Each line: wall-time | procedure | Err.Number | Err.Description | Erl (line no)
+Private Sub LogErr(ByVal procName As String)
+    Dim errNo As Long, errDesc As String, erl As Long
+    errNo = Err.Number
+    errDesc = Err.Description
+    On Error Resume Next
+    erl = Erl
+    On Error GoTo 0
+
+    Dim ts As String, line As String
+    ts = Format$(Now, "yyyy-mm-dd hh:mm:ss")
+    line = ts & " | ERR | " & procName & " | #" & CStr(errNo) & " | " & errDesc & " | line " & CStr(erl)
+
+    ' Global debug log (always) - fixed path, appended across every run.
+    If Len(mDebugLogPath) = 0 Then
+        If Len(gLogPath) > 0 Then
+            mDebugLogPath = Left$(gLogPath, InStrRev(gLogPath, Application.PathSeparator)) & "macro-debug.log"
+        End If
+    End If
+    If Len(mDebugLogPath) > 0 Then
+        DebugWriteLine mDebugLogPath, line
+    End If
+
+    ' Per-run log (only during a report run).
+    If mInReportRun And Len(gLogPath) > 0 Then
+        DebugWriteLine gLogPath, line
+    End If
+End Sub
+
+' Append one line to a log file (opens/closes each call so concurrent runs don't
+' collide, and so a partial write never leaves the file locked).
+Private Sub DebugWriteLine(ByVal path As String, ByVal line As String)
+    Dim ff As Integer
+    On Error Resume Next
+    ff = FreeFile
+    Open path For Append As #ff
+    Print #ff, line
+    Close #ff
+    On Error GoTo 0
+End Sub
+
+
 Private Sub FastModeOn()
     On Error Resume Next
     Application.ScreenUpdating = False
     Application.EnableEvents = False
     Application.DisplayAlerts = False
+    Application.Calculation = xlManual
     On Error GoTo 0
 End Sub
 
@@ -728,9 +868,8 @@ End Sub
 Private Function GetOrCreateStartSheet() As Worksheet
     Dim ws As Worksheet
 
-    On Error Resume Next
+    On Error GoTo LocalFail
     Set ws = ThisWorkbook.Worksheets(START_SHEET)
-    On Error GoTo 0
     If ws Is Nothing Then
         Set ws = ThisWorkbook.Worksheets.Add(Before:=ThisWorkbook.Worksheets(1))
         ws.Name = START_SHEET
@@ -862,11 +1001,15 @@ Private Function GetOrCreateStartSheet() As Worksheet
     On Error GoTo 0
 
     Set GetOrCreateStartSheet = ws
+    Exit Function
+LocalFail:
+    LogErr "GetOrCreateStartSheet"
 End Function
 
 
 ' One numbered step row: navy number cell + merged text on the given fill.
 Private Sub AddStartStep(ws As Worksheet, ByVal rowNum As Long, ByVal text As String, ByVal fillColor As Long)
+    On Error GoTo LocalFail
     With ws.Cells(rowNum, "B")
         .Value = CStr(rowNum - 8)
         .Interior.Color = RGB(31, 78, 121)
@@ -886,12 +1029,16 @@ Private Sub AddStartStep(ws As Worksheet, ByVal rowNum As Long, ByVal text As St
         .VerticalAlignment = xlCenter
     End With
     ws.Cells(rowNum, "C").IndentLevel = 1
+    Exit Sub
+LocalFail:
+    LogErr "AddStartStep"
 End Sub
 
 
 ' One "good to know" bullet row. The glyph is built with ChrW so this module stays
 ' ASCII-only and imports identically whatever the codepage of the .bas file is.
 Private Sub AddStartBullet(ws As Worksheet, ByVal rowNum As Long, ByVal text As String)
+    On Error GoTo LocalFail
     With ws.Range(ws.Cells(rowNum, "B"), ws.Cells(rowNum, "F"))
         .Merge
         .Value = ChrW(8226) & "  " & text
@@ -901,6 +1048,9 @@ Private Sub AddStartBullet(ws As Worksheet, ByVal rowNum As Long, ByVal text As 
         .VerticalAlignment = xlCenter
     End With
     ws.Cells(rowNum, "B").IndentLevel = 1
+    Exit Sub
+LocalFail:
+    LogErr "AddStartBullet"
 End Sub
 
 
@@ -909,9 +1059,8 @@ Private Sub PositionStartLogo(ws As Worksheet)
     Dim shp As Shape, logoW As Double, logoH As Double
     Dim rowTop As Double, rowHeight As Double
 
-    On Error Resume Next
+    On Error GoTo LocalFail
     Set shp = ws.Shapes(LOGO_SHAPE)
-    On Error GoTo 0
     If shp Is Nothing Then Exit Sub
 
     ' Match the sibling builder: 150 pt wide, height keeps the picture's own aspect.
@@ -933,12 +1082,16 @@ Private Sub PositionStartLogo(ws As Worksheet)
     shp.Left = ws.Range("E2").Left + 1
     shp.Top = rowTop + (rowHeight - logoH) / 2
     shp.Placement = xlMove
-    On Error GoTo 0
+    Exit Sub
+LocalFail:
+    LogErr "PositionStartLogo"
 End Sub
 
 
 Private Function FindSourceWorksheet(wb As Workbook, ByRef headerRowOut As Long) As Worksheet
     Dim ws As Worksheet, hr As Long
+
+    On Error GoTo LocalFail
     For Each ws In wb.Worksheets
         hr = FindHeaderRow(ws, MANAGER_HEADER, STATUS_HEADER)
         If hr > 0 Then
@@ -947,6 +1100,9 @@ Private Function FindSourceWorksheet(wb As Workbook, ByRef headerRowOut As Long)
             Exit Function
         End If
     Next ws
+    Exit Function
+LocalFail:
+    LogErr "FindSourceWorksheet"
 End Function
 
 
@@ -956,6 +1112,8 @@ Private Sub LoadSourceIntoRawData(masterWb As Workbook, src As Worksheet, header
     Dim dst As Worksheet
     Dim srcRange As Range
     Dim r As Long
+
+    On Error GoTo LocalFail
     Set dst = GetOrCreateRawSheet(masterWb)
     dst.Cells.Clear
     Set srcRange = src.Range(src.Cells(headerRow, 1), src.Cells(lastRow, lastCol))
@@ -964,21 +1122,30 @@ Private Sub LoadSourceIntoRawData(masterWb As Workbook, src As Worksheet, header
         CopyRowFormats src, dst, headerRow + r - 1, r, lastCol
     Next r
     dst.Columns.AutoFit
+    Exit Sub
+LocalFail:
+    LogErr "LoadSourceIntoRawData"
 End Sub
 
 
 Private Function GetOrCreateRawSheet(wb As Workbook) As Worksheet
+    On Error GoTo LocalFail
     If SheetExists(RAW_SHEET, wb) Then
         Set GetOrCreateRawSheet = wb.Worksheets(RAW_SHEET)
     Else
         Set GetOrCreateRawSheet = wb.Worksheets.Add(After:=wb.Worksheets(wb.Worksheets.Count))
         GetOrCreateRawSheet.Name = RAW_SHEET
     End If
+    Exit Function
+LocalFail:
+    LogErr "GetOrCreateRawSheet"
 End Function
 
 
 Private Function GetOrCreateSettingsSheet(wb As Workbook) As Worksheet
     Dim ws As Worksheet
+
+    On Error GoTo LocalFail
     If SheetExists(SETTINGS_SHEET, wb) Then
         Set ws = wb.Worksheets(SETTINGS_SHEET)
     Else
@@ -990,22 +1157,34 @@ Private Function GetOrCreateSettingsSheet(wb As Workbook) As Worksheet
     End If
     ws.Visible = xlSheetVeryHidden
     Set GetOrCreateSettingsSheet = ws
+    Exit Function
+LocalFail:
+    LogErr "GetOrCreateSettingsSheet"
 End Function
 
 
 Private Function GetRememberedOutputFolder(wb As Workbook) As String
     Dim ws As Worksheet
+
     On Error Resume Next
     Set ws = wb.Worksheets(SETTINGS_SHEET)
+    On Error GoTo LocalFail
     If Not ws Is Nothing Then GetRememberedOutputFolder = Trim$(SafeStr(ws.Range("B2").Value))
-    On Error GoTo 0
+    Exit Function
+LocalFail:
+    LogErr "GetRememberedOutputFolder"
 End Function
 
 
 Private Sub SaveOutputFolder(wb As Workbook, folderPath As String)
     Dim ws As Worksheet
+
+    On Error GoTo LocalFail
     Set ws = GetOrCreateSettingsSheet(wb)
     ws.Range("B2").Value = folderPath
+    Exit Sub
+LocalFail:
+    LogErr "SaveOutputFolder"
 End Sub
 
 
@@ -1027,26 +1206,36 @@ End Sub
 
 Private Function FolderExists(folderPath As String) As Boolean
     Dim clean As String
+
+    On Error GoTo LocalFail
     clean = NormalizeFolder(folderPath)
-    On Error Resume Next
     FolderExists = (Len(Dir(clean, vbDirectory)) > 0)
-    On Error GoTo 0
+    Exit Function
+LocalFail:
+    LogErr "FolderExists"
 End Function
 
 
 ' Strip any trailing path separator so joins never double up.
 Private Function NormalizeFolder(ByVal folderPath As String) As String
     Dim s As String
+
+    On Error GoTo LocalFail
     s = Trim$(folderPath)
     Do While Len(s) > 1 And Right$(s, 1) = Application.PathSeparator
         s = Left$(s, Len(s) - 1)
     Loop
     NormalizeFolder = s
+    Exit Function
+LocalFail:
+    LogErr "NormalizeFolder"
 End Function
 
 
 Private Function GetUniqueOutputPath(folderPath As String, baseFileName As String) As String
     Dim candidate As String, n As Long, dotPos As Long
+
+    On Error GoTo LocalFail
     folderPath = NormalizeFolder(folderPath)
     candidate = folderPath & Application.PathSeparator & baseFileName
     If Len(Dir(candidate)) = 0 Then
@@ -1056,20 +1245,29 @@ Private Function GetUniqueOutputPath(folderPath As String, baseFileName As Strin
     dotPos = InStrRev(baseFileName, ".")
     n = 2
     Do
-        candidate = folderPath & Application.PathSeparator & Left$(baseFileName, dotPos - 1) & " (" & CStr(n) & ")" & Mid$(baseFileName, dotPos)
+        If dotPos > 0 Then
+            candidate = folderPath & Application.PathSeparator & Left$(baseFileName, dotPos - 1) & " (" & CStr(n) & ")" & Mid$(baseFileName, dotPos)
+        Else
+            candidate = folderPath & Application.PathSeparator & baseFileName & " (" & CStr(n) & ")"
+        End If
         n = n + 1
     Loop While Len(Dir(candidate)) > 0
     GetUniqueOutputPath = candidate
+    Exit Function
+LocalFail:
+    LogErr "GetUniqueOutputPath"
 End Function
 
 
 Private Sub RestoreExcelState(oldCalc As XlCalculation, oldScreen As Boolean, oldEvents As Boolean, oldAlerts As Boolean)
-    On Error Resume Next
+    On Error GoTo LocalFail
     Application.Calculation = oldCalc
     Application.ScreenUpdating = oldScreen
     Application.EnableEvents = oldEvents
     Application.DisplayAlerts = oldAlerts
-    On Error GoTo 0
+    Exit Sub
+LocalFail:
+    LogErr "RestoreExcelState"
 End Sub
 
 
@@ -1100,6 +1298,8 @@ End Sub
 
 Private Function BuildOutputArray(ByRef data As Variant, ByVal rows As Collection, ByVal lastCol As Long) As Variant
     Dim result() As Variant, i As Long, c As Long, srcRow As Long
+
+    On Error GoTo LocalFail
     ReDim result(1 To rows.Count + 1, 1 To lastCol)
     For c = 1 To lastCol: result(1, c) = data(1, c): Next c
     For i = 1 To rows.Count
@@ -1107,14 +1307,22 @@ Private Function BuildOutputArray(ByRef data As Variant, ByVal rows As Collectio
         For c = 1 To lastCol: result(i + 1, c) = data(srcRow, c): Next c
     Next i
     BuildOutputArray = result
+    Exit Function
+LocalFail:
+    LogErr "BuildOutputArray"
 End Function
 
 
 Private Function GetHeaderArray(ByRef data As Variant, ByVal lastCol As Long) As Variant
     Dim a() As Variant, c As Long
+
+    On Error GoTo LocalFail
     ReDim a(1 To 1, 1 To lastCol)
     For c = 1 To lastCol: a(1, c) = data(1, c): Next c
     GetHeaderArray = a
+    Exit Function
+LocalFail:
+    LogErr "GetHeaderArray"
 End Function
 
 
@@ -1125,6 +1333,8 @@ End Function
 Private Sub CopyRowFormats(src As Worksheet, dst As Worksheet, ByVal srcRow As Long, ByVal dstRow As Long, ByVal lastCol As Long)
     Dim c As Long
     Dim sf As Font, df As Font
+
+    On Error GoTo LocalFail
     For c = 1 To lastCol
         dst.Cells(dstRow, c).NumberFormat = src.Cells(srcRow, c).NumberFormat
         Set sf = src.Cells(srcRow, c).Font
@@ -1134,11 +1344,16 @@ Private Sub CopyRowFormats(src As Worksheet, dst As Worksheet, ByVal srcRow As L
         df.Bold = sf.Bold
         df.Color = sf.Color
     Next c
+    Exit Sub
+LocalFail:
+    LogErr "CopyRowFormats"
 End Sub
 
 
 Private Sub SortManagersByLastName(ByRef a As Variant)
     Dim i As Long, j As Long, tmp As Variant
+
+    On Error GoTo LocalFail
     For i = LBound(a) To UBound(a) - 1
         For j = i + 1 To UBound(a)
             If LastNameKey(CStr(a(j))) < LastNameKey(CStr(a(i))) Then
@@ -1146,6 +1361,9 @@ Private Sub SortManagersByLastName(ByRef a As Variant)
             End If
         Next j
     Next i
+    Exit Sub
+LocalFail:
+    LogErr "SortManagersByLastName"
 End Sub
 
 
@@ -1169,6 +1387,8 @@ End Function
 
 Private Function FindHeaderRow(ws As Worksheet, header1 As String, header2 As String) As Long
     Dim r As Long, topRow As Long
+
+    On Error GoTo LocalFail
     topRow = LastUsedRow(ws)
     If topRow > 30 Then topRow = 30
     For r = 1 To topRow
@@ -1177,6 +1397,9 @@ Private Function FindHeaderRow(ws As Worksheet, header1 As String, header2 As St
             Exit Function
         End If
     Next r
+    Exit Function
+LocalFail:
+    LogErr "FindHeaderRow"
 End Function
 
 
@@ -1184,6 +1407,8 @@ End Function
 ' header detection. Now they are simply skipped.
 Private Function FindHeaderColumn(ws As Worksheet, headerRow As Long, headerName As String) As Long
     Dim c As Long, lastCol As Long
+
+    On Error GoTo LocalFail
     If headerRow < 1 Then Exit Function
     lastCol = LastUsedColumn(ws)
     For c = 1 To lastCol
@@ -1192,20 +1417,33 @@ Private Function FindHeaderColumn(ws As Worksheet, headerRow As Long, headerName
             Exit Function
         End If
     Next c
+    Exit Function
+LocalFail:
+    LogErr "FindHeaderColumn"
 End Function
 
 
 Private Function LastUsedRow(ws As Worksheet) As Long
     Dim f As Range
+
+    On Error GoTo LocalFail
     Set f = ws.Cells.Find(What:="*", After:=ws.Cells(1, 1), LookIn:=xlFormulas, LookAt:=xlPart, SearchOrder:=xlByRows, SearchDirection:=xlPrevious, MatchCase:=False)
     If f Is Nothing Then LastUsedRow = 1 Else LastUsedRow = f.Row
+    Exit Function
+LocalFail:
+    LogErr "LastUsedRow"
 End Function
 
 
 Private Function LastUsedColumn(ws As Worksheet) As Long
     Dim f As Range
+
+    On Error GoTo LocalFail
     Set f = ws.Cells.Find(What:="*", After:=ws.Cells(1, 1), LookIn:=xlFormulas, LookAt:=xlPart, SearchOrder:=xlByColumns, SearchDirection:=xlPrevious, MatchCase:=False)
     If f Is Nothing Then LastUsedColumn = 1 Else LastUsedColumn = f.Column
+    Exit Function
+LocalFail:
+    LogErr "LastUsedColumn"
 End Function
 
 
@@ -1240,12 +1478,17 @@ End Function
 ' Case-insensitive manager lookup in mgrNames (1-based index, 0 = not found).
 Private Function FindManager(ByVal mgrNames As Collection, ByVal name As String) As Long
     Dim i As Long
+
+    On Error GoTo LocalFail
     For i = 1 To mgrNames.Count
         If StrComp(CStr(mgrNames(i)), name, vbTextCompare) = 0 Then
             FindManager = i
             Exit Function
         End If
     Next i
+    Exit Function
+LocalFail:
+    LogErr "FindManager"
 End Function
 
 
@@ -1253,6 +1496,8 @@ End Function
 ' "A-B", and a name matching a reserved sheet name would collide with it.
 Private Function GetOrCreateOutputSheet(wb As Workbook, sheetName As String, ByVal firstOutput As Boolean) As Worksheet
     Dim ws As Worksheet
+
+    On Error GoTo LocalFail
     If firstOutput And wb.Worksheets.Count = 1 Then
         Set ws = wb.Worksheets(1)
         ws.Name = UniqueSheetName(wb, sheetName)
@@ -1261,11 +1506,16 @@ Private Function GetOrCreateOutputSheet(wb As Workbook, sheetName As String, ByV
         ws.Name = UniqueSheetName(wb, sheetName)
     End If
     Set GetOrCreateOutputSheet = ws
+    Exit Function
+LocalFail:
+    LogErr "GetOrCreateOutputSheet"
 End Function
 
 
 Private Function UniqueSheetName(wb As Workbook, ByVal baseName As String) As String
     Dim candidate As String, n As Long
+
+    On Error GoTo LocalFail
     candidate = baseName
     n = 1
     Do While SheetExists(candidate, wb)
@@ -1273,6 +1523,9 @@ Private Function UniqueSheetName(wb As Workbook, ByVal baseName As String) As St
         candidate = Left$(baseName, 31 - Len(" (" & CStr(n) & ")")) & " (" & CStr(n) & ")"
     Loop
     UniqueSheetName = candidate
+    Exit Function
+LocalFail:
+    LogErr "UniqueSheetName"
 End Function
 
 
@@ -1321,7 +1574,9 @@ Private Function DetectPriorReport(ByVal outputFolder As String, _
     Dim fileName As String, folder As String
     Dim currentNames As Collection
     Dim bestPath As String, bestScore As Long, score As Long
-    Dim threshold As Long, r As Long
+    Dim threshold As Long, r As Long, nm As String
+
+    On Error GoTo LocalFail
 
     If Len(outputFolder) = 0 Or nameCol < 1 Then Exit Function
     folder = NormalizeFolder(outputFolder)
@@ -1329,7 +1584,8 @@ Private Function DetectPriorReport(ByVal outputFolder As String, _
 
     Set currentNames = New Collection
     For r = 2 To currentLastRow
-        currentNames.Add NormalizeName(data(r, nameCol))
+        nm = NormalizeName(data(r, nameCol))
+        If Len(nm) > 0 Then currentNames.Add nm
     Next r
     If currentNames.Count = 0 Then Exit Function
 
@@ -1365,6 +1621,9 @@ Private Function DetectPriorReport(ByVal outputFolder As String, _
 
     If bestScore < threshold Then Exit Function
     DetectPriorReport = bestPath
+    Exit Function
+LocalFail:
+    LogErr "DetectPriorReport"
 End Function
 
 
@@ -1383,35 +1642,55 @@ Private Function PriorNameOverlap(ByVal priorPath As String, _
     Set wb = Workbooks.Open(Filename:=priorPath, ReadOnly:=True, _
                             UpdateLinks:=False, AddToMru:=False)
 
-    ' Prefer the builder's Raw Data tab; fall back to any sheet with the
-    ' required headers (covers 2.0.18-built reports).
+    Set priorNames = New Collection
+
+    ' Prefer the builder's Raw Data tab, then any sheet carrying both
+    ' required headers. A 2.0.18 prior has neither - it stores one manager
+    ' per tab with the Name column (usually C) - so fall back to reading
+    ' every manager tab's name column instead of scoring zero.
     Set ws = Nothing
     On Error Resume Next
     Set ws = wb.Worksheets(RAW_SHEET)
     On Error GoTo Fail
     If ws Is Nothing Then Set ws = FindSourceWorksheet(wb, headerRow)
 
-    If ws Is Nothing Then GoTo Fail
-    headerRow = FindHeaderRow(ws, MANAGER_HEADER, STATUS_HEADER)
-    If headerRow < 1 Then GoTo Fail
-    nameCol = FindHeaderColumn(ws, headerRow, NAME_HEADER)
-    If nameCol < 1 Then GoTo Fail
+    If Not ws Is Nothing Then
+        headerRow = FindHeaderRow(ws, MANAGER_HEADER, STATUS_HEADER)
+        If headerRow < 1 Then GoTo Fail
+        nameCol = FindHeaderColumn(ws, headerRow, NAME_HEADER)
+        If nameCol < 1 Then GoTo Fail
 
-    lastRow = LastUsedRow(ws)
-    lastCol = LastUsedColumn(ws)
-    If lastRow <= headerRow Then GoTo Fail
-
-    data = ws.Range(ws.Cells(headerRow, 1), ws.Cells(lastRow, lastCol)).Value2
-    Set priorNames = New Collection
-    For r = 2 To UBound(data, 1)
-        priorNames.Add NormalizeName(data(r, nameCol))
-    Next r
+        lastRow = LastUsedRow(ws)
+        lastCol = LastUsedColumn(ws)
+        If lastRow > headerRow Then
+            data = ws.Range(ws.Cells(headerRow, 1), ws.Cells(lastRow, lastCol)).Value2
+            For r = 2 To UBound(data, 1)
+                priorNames.Add NormalizeName(data(r, nameCol))
+            Next r
+        End If
+    Else
+        For Each ws In wb.Worksheets
+            If IsManagerTab(ws.Name) Then
+                headerRow = FindHeaderRowForSingle(ws, NAME_HEADER)
+                If headerRow = 0 Then headerRow = 1
+                nameCol = FindHeaderColumn(ws, headerRow, NAME_HEADER)
+                If nameCol = 0 Then nameCol = 3
+                lastRow = LastUsedRow(ws)
+                If lastRow > headerRow Then
+                    For r = headerRow + 1 To lastRow
+                        priorNames.Add NormalizeName(ws.Cells(r, nameCol).Value)
+                    Next r
+                End If
+            End If
+        Next ws
+    End If
 
     missing = CountDiff(currentNames, priorNames)
     PriorNameOverlap = currentNames.Count - missing
     If PriorNameOverlap < 0 Then PriorNameOverlap = 0
 
 Fail:
+    LogErr "PriorNameOverlap"
     On Error Resume Next
     If Not wb Is Nothing Then wb.Close SaveChanges:=False
 End Function
@@ -1422,6 +1701,7 @@ Private Sub SortPathsNewestFirst(ByRef paths() As String, ByVal n As Long)
     Dim i As Long, j As Long, key As String
     Dim keyTime As Date, curTime As Date
 
+    On Error GoTo LocalFail
     For i = 2 To n
         key = paths(i)
         keyTime = FileDateTime(paths(i))
@@ -1434,6 +1714,9 @@ Private Sub SortPathsNewestFirst(ByRef paths() As String, ByVal n As Long)
         Loop
         paths(j + 1) = key
     Next i
+    Exit Sub
+LocalFail:
+    LogErr "SortPathsNewestFirst"
 End Sub
 
 
@@ -1472,6 +1755,7 @@ Private Sub LoadPriorComparison(ByVal priorPath As String, _
     Exit Sub
 
 Fail:
+    LogErr "LoadPriorComparison"
     On Error Resume Next
     If Not wb Is Nothing Then wb.Close SaveChanges:=False
     ' Comparison degrades to "no prior" instead of failing the build.
@@ -1479,11 +1763,15 @@ End Sub
 
 
 Private Function IsManagerTab(ByVal sheetName As String) As Boolean
+    On Error GoTo LocalFail
     If StrComp(sheetName, DASHBOARD_SHEET, vbTextCompare) = 0 Then Exit Function
     If StrComp(sheetName, RAW_SHEET, vbTextCompare) = 0 Then Exit Function
     If StrComp(sheetName, SETTINGS_SHEET, vbTextCompare) = 0 Then Exit Function
     If StrComp(sheetName, "START HERE", vbTextCompare) = 0 Then Exit Function
     IsManagerTab = True
+    Exit Function
+LocalFail:
+    LogErr "IsManagerTab"
 End Function
 
 
@@ -1491,6 +1779,8 @@ End Function
 ' title rows above the table).
 Private Function FindHeaderRowForSingle(ws As Worksheet, ByVal headerName As String) As Long
     Dim r As Long, maxRow As Long
+
+    On Error GoTo LocalFail
     maxRow = LastUsedRow(ws)
     If maxRow > 30 Then maxRow = 30
     For r = 1 To maxRow
@@ -1499,6 +1789,9 @@ Private Function FindHeaderRowForSingle(ws As Worksheet, ByVal headerName As Str
             Exit Function
         End If
     Next r
+    Exit Function
+LocalFail:
+    LogErr "FindHeaderRowForSingle"
 End Function
 
 
@@ -1573,11 +1866,16 @@ Private Sub FormatManagerSheet(ws As Worksheet, ByVal manager As String, _
     Dim priorCount As Long, curCount As Long, newCount As Long, completedCount As Long
     Dim r As Long, isNew As Boolean, bandOn As Boolean
     Dim repNames As Collection
-    Dim repText As String, i As Long, j As Long, repName As String, prevRep As String
+    Dim repText As String, i As Long, j As Long, repName As String, prevRep As String, nm As String
     Dim rNames() As String, rCounts() As Long, tmpC As Long
 
-    lastCol = MANAGER_LAST_COL: lastRow = LastUsedRow(ws)
+    On Error GoTo LocalFail
+
+    lastCol = LastUsedColumn(ws): lastRow = LastUsedRow(ws)
     If lastRow < 1 Then Exit Sub
+    ' Manager tabs carry only MANAGER_LAST_COL (8) data columns; cap used
+    ' range so nothing beyond column 8 can reappear on the tab.
+    If lastCol > MANAGER_LAST_COL Then lastCol = MANAGER_LAST_COL
 
     ' Uniform columns: the four KPI cards below are exactly three columns wide
     ' each, so they come out the same size without disturbing the data.
@@ -1596,7 +1894,8 @@ Private Sub FormatManagerSheet(ws As Worksheet, ByVal manager As String, _
     newCount = 0
     If priorNames.Count > 0 And nameCol > 0 Then
         For r = 10 To lastRow
-            If Not PriorNameExists(priorNames, NormalizeName(ws.Cells(r, nameCol).Value)) Then newCount = newCount + 1
+            nm = NormalizeName(ws.Cells(r, nameCol).Value)
+            If Len(nm) > 0 And Not PriorNameExists(priorNames, nm) Then newCount = newCount + 1
         Next r
     End If
     completedCount = priorCount - (curCount - newCount)
@@ -1605,7 +1904,7 @@ Private Sub FormatManagerSheet(ws As Worksheet, ByVal manager As String, _
     ' Banner: "Manager | PM SUMMARY".
     With ws.Range(ws.Cells(1, 1), ws.Cells(1, lastCol))
         .Merge
-        .Value = manager & "  |  PM SUMMARY"
+        .Value = manager & "  |  PM Summary"
         .Font.Name = UI_FONT
         .Font.Bold = True
         .Font.Size = 16
@@ -1616,11 +1915,11 @@ Private Sub FormatManagerSheet(ws As Worksheet, ByVal manager As String, _
     End With
     ws.Rows(1).RowHeight = 34
 
-    ' Four equal KPI cards across the full width.
-    AddPolishedCard ws, "A2:C4", "PMs Requested", curCount, RGB(221, 235, 247), False, "THIS WEEK"
-    AddPolishedCard ws, "D2:F4", "Prior Report", priorCount, RGB(242, 242, 242), False, "LAST WEEK"
-    AddPolishedCard ws, "G2:I4", "Completed", completedCount, RGB(226, 239, 218), False, "SINCE LAST WEEK"
-    AddPolishedCard ws, "J2:L4", "New PMs", newCount, RGB(226, 239, 218), False, "ADDED"
+    ' Four equal KPI cards across the full width (A:H = 8 data columns).
+    AddPolishedCard ws, "A2:B4", "PMs This Week", curCount, RGB(221, 235, 247), False
+    AddPolishedCard ws, "C2:D4", "Prior Report", priorCount, RGB(242, 242, 242), False, "LAST WEEK"
+    AddPolishedCard ws, "E2:F4", "Completed", completedCount, RGB(226, 239, 218), False, "SINCE LAST WEEK"
+    AddPolishedCard ws, "G2:H4", "New PMs", newCount, RGB(226, 239, 218), False, "ADDED THIS WEEK"
 
     ' PMs by Rep card (counts read from the written column A).
     Set repNames = New Collection
@@ -1657,7 +1956,7 @@ Private Sub FormatManagerSheet(ws As Worksheet, ByVal manager As String, _
             repText = repText & rNames(i) & ": " & CStr(rCounts(i))
         Next i
     End If
-    AddPolishedTextCard ws, "A5:L7", "PMs BY SALES REP", repText, RGB(247, 249, 251), "WHO IS DOING THEM"
+    AddPolishedTextCard ws, "A5:H7", "Sales Rep Summary", repText, RGB(247, 249, 251)
 
     ws.Rows(8).RowHeight = 10
 
@@ -1676,7 +1975,7 @@ Private Sub FormatManagerSheet(ws As Worksheet, ByVal manager As String, _
                 If bandOn Then
                     .Interior.Color = RGB(255, 255, 255)
                 Else
-                    .Interior.Color = RGB(238, 241, 245)
+                    .Interior.Color = RGB(235, 242, 248)
                 End If
             End With
 
@@ -1704,16 +2003,51 @@ Private Sub FormatManagerSheet(ws As Worksheet, ByVal manager As String, _
         .CenterHorizontally = True
     End With
     On Error GoTo 0
+
+    ' Clear and hide any columns beyond the 8 data columns so treatment-detail
+    ' columns removed from source never appear on manager tabs - not even as
+    ' empty formatted cells in UsedRange (which screenshot export reads).
+    If MANAGER_LAST_COL < ws.Columns.Count Then
+        ws.Columns(MANAGER_LAST_COL + 1).Resize(, ws.Columns.Count - MANAGER_LAST_COL).Clear
+        ws.Columns(MANAGER_LAST_COL + 1).Resize(, ws.Columns.Count - MANAGER_LAST_COL).Hidden = True
+    End If
+
+    ' Block out every row below the last data row (and re-confirm columns
+    ' beyond the data columns are hidden) so the tab shows only the report
+    ' - nothing else is visible, on screen or in a screenshot.
+    HideUnusedCells ws, lastRow, lastCol
+    Exit Sub
+LocalFail:
+    LogErr "FormatManagerSheet"
+End Sub
+
+
+' Hide every row below the last data row and every column to the right of the
+' last data column so a tab shows only the report; nothing else is visible.
+Private Sub HideUnusedCells(ws As Worksheet, ByVal lastRow As Long, ByVal lastCol As Long)
+    On Error Resume Next
+    If lastRow > 0 And lastRow < ws.Rows.Count Then
+        ws.Rows(CStr(lastRow + 1) & ":" & CStr(ws.Rows.Count)).Hidden = True
+    End If
+    If lastCol > 0 And lastCol < ws.Columns.Count Then
+        ws.Columns(CStr(lastCol + 1) & ":" & CStr(ws.Columns.Count)).Hidden = True
+    End If
+    On Error GoTo 0
 End Sub
 
 
 ' Case-insensitive count of a value in a sheet column (rep totals).
 Private Function CountInSheet(ws As Worksheet, ByVal value As String, ByVal lastRow As Long) As Long
     Dim r As Long, n As Long
+
+    On Error GoTo LocalFail
     For r = 10 To lastRow
         If StrComp(Trim$(SafeStr(ws.Cells(r, 1).Value)), value, vbTextCompare) = 0 Then n = n + 1
     Next r
     CountInSheet = n
+    Exit Function
+LocalFail:
+    LogErr "CountInSheet"
 End Function
 
 
@@ -1723,6 +2057,7 @@ Private Sub AddPolishedCard(ws As Worksheet, ByVal address As String, ByVal labe
     Dim firstRow As Long, firstCol As Long, lastRow As Long, lastCol As Long
     Dim accent As Long
 
+    On Error GoTo LocalFail
     Set box = ws.Range(address)
     firstRow = box.Row: firstCol = box.Column
     lastRow = box.Row + box.Rows.Count - 1: lastCol = box.Column + box.Columns.Count - 1
@@ -1734,7 +2069,7 @@ Private Sub AddPolishedCard(ws As Worksheet, ByVal address As String, ByVal labe
     If colorChange Then accent = ChangeColor(value) Else accent = RGB(31, 78, 121)
 
     hdr.Value = UCase$(label)
-    If Len(eyebrow) > 0 Then hdr.Value = UCase$(eyebrow) & vbLf & UCase$(label)
+    If Len(eyebrow) > 0 Then hdr.Value = UCase$(eyebrow) & " · " & UCase$(label)
     valBox.Value = CStr(value)
 
     With box
@@ -1743,7 +2078,7 @@ Private Sub AddPolishedCard(ws As Worksheet, ByVal address As String, ByVal labe
         .Borders.Color = RGB(210, 218, 226)
     End With
     With hdr
-        .HorizontalAlignment = xlCenter: .VerticalAlignment = xlCenter: .WrapText = True
+        .HorizontalAlignment = xlCenter: .VerticalAlignment = xlCenter: .WrapText = False
         .Font.Name = UI_FONT
         .Font.Bold = True: .Font.Size = 9: .Font.Color = RGB(255, 255, 255)
         .Interior.Color = accent
@@ -1752,16 +2087,19 @@ Private Sub AddPolishedCard(ws As Worksheet, ByVal address As String, ByVal labe
         .Borders(xlEdgeBottom).Color = RGB(255, 255, 255)
     End With
     With valBox
-        .HorizontalAlignment = xlCenter: .VerticalAlignment = xlCenter: .WrapText = True
+        .HorizontalAlignment = xlCenter: .VerticalAlignment = xlCenter: .WrapText = False
         .Font.Name = UI_FONT
         .Font.Bold = True: .Font.Size = 24: .Font.Color = RGB(31, 45, 61)
         .Interior.Color = fillColor
     End With
     If colorChange Then valBox.Font.Color = ChangeColor(value)
 
-    ws.Rows(firstRow).RowHeight = 30
+    ws.Rows(firstRow).RowHeight = 20
     ws.Rows(firstRow + 1).RowHeight = 24
     If lastRow > firstRow + 1 Then ws.Rows((firstRow + 1) & ":" & lastRow).RowHeight = 24
+    Exit Sub
+LocalFail:
+    LogErr "AddPolishedCard"
 End Sub
 
 
@@ -1770,6 +2108,7 @@ Private Sub AddPolishedTextCard(ws As Worksheet, ByVal address As String, ByVal 
     Dim box As Range, hdr As Range, valBox As Range
     Dim firstRow As Long, firstCol As Long, lastRow As Long, lastCol As Long
 
+    On Error GoTo LocalFail
     Set box = ws.Range(address)
     firstRow = box.Row: firstCol = box.Column
     lastRow = box.Row + box.Rows.Count - 1: lastCol = box.Column + box.Columns.Count - 1
@@ -1806,6 +2145,9 @@ Private Sub AddPolishedTextCard(ws As Worksheet, ByVal address As String, ByVal 
     ws.Rows(firstRow).RowHeight = 30
     ws.Rows(firstRow + 1).RowHeight = 24
     If lastRow > firstRow + 1 Then ws.Rows((firstRow + 1) & ":" & lastRow).RowHeight = 24
+    Exit Sub
+LocalFail:
+    LogErr "AddPolishedTextCard"
 End Sub
 
 
@@ -1828,6 +2170,7 @@ End Function
 Private Sub ApplyReaderFriendlyFormatting(ws As Worksheet, ByVal headerRow As Long, ByVal lastRow As Long, ByVal lastCol As Long)
     Dim dataRange As Range
 
+    On Error GoTo LocalFail
     Set dataRange = ws.Range(ws.Cells(headerRow, 1), ws.Cells(lastRow, lastCol))
     dataRange.Borders.LineStyle = xlContinuous
     dataRange.Borders.Weight = xlHairline
@@ -1869,6 +2212,9 @@ Private Sub ApplyReaderFriendlyFormatting(ws As Worksheet, ByVal headerRow As Lo
         ActiveWindow.FreezePanes = True
     End If
     On Error GoTo 0
+    Exit Sub
+LocalFail:
+    LogErr "ApplyReaderFriendlyFormatting"
 End Sub
 
 
@@ -1930,11 +2276,13 @@ Private Sub BuildDashboard(wb As Workbook, ByVal managers As Variant, _
     Dim repEnd As Long, repRows As Long, repCount As Long, repGroup As Long
     Dim repRowOffset As Long, repBaseCol As Long
     Dim sortNames() As String, sortCounts() As Long, sortPrior() As Long
-    Dim tS As String, tC As Long, tP As Long, j As Long
+    Dim tS As String, tC As Long, tP As Long, j As Long, nm As String
     Dim mgrEnd As Long
     Dim hdrRow As Long, cardRow As Long
     Dim totalRow As Long, sumCol As Long
     Dim footRow As Long
+
+    On Error GoTo LocalFail
 
     ' Row plan, in one place: two card rows, then the tables. Everything below
     ' the cards is derived from hdrRow so a layout change is one number.
@@ -1951,7 +2299,7 @@ Private Sub BuildDashboard(wb As Workbook, ByVal managers As Variant, _
     End With
     With ws.Range("C1:L1")
         .Merge
-        .Value = "WEEKLY PM REQUEST SUMMARY"
+        .Value = "PM Request Summary"
         .Font.Bold = True
         .Font.Size = 20
         .Font.Color = RGB(255, 255, 255)
@@ -1964,15 +2312,15 @@ Private Sub BuildDashboard(wb As Workbook, ByVal managers As Variant, _
 
     ' Meta strip: which file this is, which file it is compared to, when built.
     ws.Range("A2:D2").Merge
-    ws.Range("A2").Value = "THIS REPORT: " & currentReportName
+    ws.Range("A2").Value = "Report: " & currentReportName
     ws.Range("E2:H2").Merge
     If Len(priorPath) > 0 Then
-        ws.Range("E2").Value = "COMPARED TO: " & Mid$(priorPath, InStrRev(priorPath, Application.PathSeparator) + 1)
+        ws.Range("E2").Value = "Prior Report: " & Mid$(priorPath, InStrRev(priorPath, Application.PathSeparator) + 1)
     Else
-        ws.Range("E2").Value = "COMPARED TO: nothing yet"
+        ws.Range("E2").Value = "Prior Report: (none)"
     End If
     ws.Range("I2:L2").Merge
-    ws.Range("I2").Value = "BUILT: " & Format(Now, "mm/dd/yyyy h:mm AM/PM")
+    ws.Range("I2").Value = "Built: " & Format(Now, "mm/dd/yyyy h:mm AM/PM")
     With ws.Range("A2:L2")
         .Font.Bold = True
         .Font.Size = 9
@@ -1988,15 +2336,15 @@ Private Sub BuildDashboard(wb As Workbook, ByVal managers As Variant, _
     ' KPI cards: two rows of three. Each card spans four columns, and the column
     ' widths below are tuned so A:D, E:H and I:L are the same width - so all six
     ' cards are identical without disturbing the two tables underneath.
-    AddPolishedCard ws, "A4:D6", "PMs This Week", pmTotal, RGB(221, 235, 247), False, "TOTAL"
-    AddPolishedCard ws, "E4:H6", "Prior Report", priorPMs, RGB(242, 242, 242), False, "LAST WEEK"
+    AddPolishedCard ws, "A4:D6", "PMs", pmTotal, RGB(221, 235, 247), False, "THIS WEEK"
+    AddPolishedCard ws, "E4:H6", "PMs", priorPMs, RGB(242, 242, 242), False, "LAST WEEK"
     If priorPMs > 0 Then
         completedTotal = priorPMs - (pmTotal - newPMs)
         If completedTotal < 0 Then completedTotal = 0
     Else
         completedTotal = 0
     End If
-    AddPolishedCard ws, "I4:L6", "Completed", completedTotal, RGB(226, 239, 218), False, "SINCE LAST WEEK"
+    AddPolishedCard ws, "I4:L6", "Closed", completedTotal, RGB(226, 239, 218), False, "SINCE LAST WEEK"
 
     ' Without a prior report there is nothing carried over.
     If priorPMs > 0 Then
@@ -2005,10 +2353,10 @@ Private Sub BuildDashboard(wb As Workbook, ByVal managers As Variant, _
     Else
         retainedPMs = 0
     End If
-    AddPolishedCard ws, "A8:D10", "New PMs", newPMs, RGB(226, 239, 218), False, "ADDED THIS WEEK"
-    AddPolishedCard ws, "E8:H10", "Sales Reps", repN, RGB(221, 235, 247), False, "DOING THEM"
-    AddPolishedCard ws, "I8:L10", "Still Open From Prior", retainedPMs, _
-                      IIf(retainedPMs = 0, RGB(226, 239, 218), RGB(244, 204, 204)), False, "TARGET: 0"
+    AddPolishedCard ws, "A8:D10", "New", newPMs, RGB(226, 239, 218), False, "THIS WEEK"
+    AddPolishedCard ws, "E8:H10", "Reps", repN, RGB(221, 235, 247), False, "ACTIVE"
+    AddPolishedCard ws, "I8:L10", "Open", retainedPMs, _
+                      IIf(retainedPMs = 0, RGB(226, 239, 218), RGB(244, 204, 204)), False, "CARRIED OVER"
     If retainedPMs = 0 Then ws.Range("I9:L10").Font.Color = RGB(0, 97, 0) Else ws.Range("I9:L10").Font.Color = RGB(156, 0, 6)
 
     ws.Rows(cardRow - 1).RowHeight = 8
@@ -2018,7 +2366,7 @@ Private Sub BuildDashboard(wb As Workbook, ByVal managers As Variant, _
     ' Section labels above the two tables.
     With ws.Range(ws.Cells(hdrRow - 1, 1), ws.Cells(hdrRow - 1, 6))
         .Merge
-        .Value = "PM REQUESTS BY SALES MANAGER"
+        .Value = "Sales Manager Summary"
         .Font.Bold = True
         .Font.Size = 10
         .Font.Color = RGB(31, 78, 121)
@@ -2026,7 +2374,7 @@ Private Sub BuildDashboard(wb As Workbook, ByVal managers As Variant, _
     End With
     With ws.Range(ws.Cells(hdrRow - 1, 7), ws.Cells(hdrRow - 1, 12))
         .Merge
-        .Value = "PMs BY SALES REP"
+        .Value = "Sales Rep Summary"
         .Font.Bold = True
         .Font.Size = 10
         .Font.Color = RGB(31, 78, 121)
@@ -2115,7 +2463,8 @@ Private Sub BuildDashboard(wb As Workbook, ByVal managers As Variant, _
             mgrNew = 0
             If priorNames.Count > 0 And nameCol > 0 Then
                 For idx = 1 To rowsForManager.Count
-                    If Not PriorNameExists(priorNames, NormalizeName(data(rowsForManager(idx), nameCol))) Then mgrNew = mgrNew + 1
+                    nm = NormalizeName(data(rowsForManager(idx), nameCol))
+                    If Len(nm) > 0 And Not PriorNameExists(priorNames, nm) Then mgrNew = mgrNew + 1
                 Next idx
             End If
             mgrCompleted = priorCount - (rowsForManager.Count - mgrNew)
@@ -2141,7 +2490,7 @@ Private Sub BuildDashboard(wb As Workbook, ByVal managers As Variant, _
     ' Table styling.
     ws.Rows(mgrEnd).RowHeight = 26
     If mgrEnd > hdrRow Then
-        For i = hdrRow To mgrEnd
+        For i = hdrRow + 1 To mgrEnd
             If i Mod 2 = 1 Then ws.Range(ws.Cells(i, 1), ws.Cells(i, 6)).Interior.Color = RGB(247, 249, 251)
         Next i
         ws.Range(ws.Cells(hdrRow + 1, 1), ws.Cells(mgrEnd, 6)).VerticalAlignment = xlCenter
@@ -2245,7 +2594,16 @@ Private Sub BuildDashboard(wb As Workbook, ByVal managers As Variant, _
     ActiveWindow.DisplayHeadings = False
     ActiveWindow.DisplayHorizontalScrollBar = False
     ws.Range("A1").Select
-    On Error GoTo 0
+
+    ' Block out everything beyond the used data so the dashboard shows only
+    ' the report, nothing else.
+    Dim dLastRow As Long, dLastCol As Long
+    dLastRow = LastUsedRow(ws): dLastCol = LastUsedColumn(ws)
+    HideUnusedCells ws, dLastRow, dLastCol
+
+    Exit Sub
+LocalFail:
+    LogErr "BuildDashboard"
 End Sub
 
 
@@ -2254,6 +2612,7 @@ End Sub
 Private Sub ColorReportTabs(wb As Workbook)
     Dim ws As Worksheet
 
+    On Error GoTo LocalFail
     For Each ws In wb.Worksheets
         If StrComp(ws.Name, DASHBOARD_SHEET, vbTextCompare) = 0 Then
             ws.Tab.Color = RGB(31, 78, 121)
@@ -2263,6 +2622,9 @@ Private Sub ColorReportTabs(wb As Workbook)
             ws.Tab.Color = RGB(157, 195, 230)
         End If
     Next ws
+    Exit Sub
+LocalFail:
+    LogErr "ColorReportTabs"
 End Sub
 
 
@@ -2271,12 +2633,14 @@ Private Sub AddManagerChart(ws As Worksheet, ByVal headerRow As Long, ByVal last
     Dim co As ChartObject, ch As Chart
     Dim topRow As Long, leftPos As Double, topPos As Double, tableW As Double
 
+    On Error GoTo LocalFail
+
     ' Remove any chart from a previous run (the sheet is reused).
     On Error Resume Next
     For Each co In ws.ChartObjects
         co.Delete
     Next co
-    On Error GoTo 0
+    On Error GoTo LocalFail
 
     If lastRow <= headerRow Then Exit Sub
 
@@ -2322,32 +2686,44 @@ Private Sub AddManagerChart(ws As Worksheet, ByVal headerRow As Long, ByVal last
     With ch.Axes(xlCategory)
         .TickLabels.Font.Size = 9
     End With
-    On Error GoTo 0
+    On Error GoTo LocalFail
+    Exit Sub
+LocalFail:
+    LogErr "AddManagerChart"
 End Sub
 
 
 Private Sub WriteTableHeader(ws As Worksheet, ByVal rowNum As Long, ByVal colNum As Long, ByVal vals As Variant)
     Dim i As Long
+
+    On Error GoTo LocalFail
     For i = LBound(vals) To UBound(vals): ws.Cells(rowNum, colNum + i).Value = vals(i): Next i
     With ws.Range(ws.Cells(rowNum, colNum), ws.Cells(rowNum, colNum + UBound(vals) - LBound(vals)))
         .Font.Bold = True: .Font.Color = RGB(255, 255, 255): .Interior.Color = RGB(31, 78, 121): .HorizontalAlignment = xlCenter
         .VerticalAlignment = xlCenter: .WrapText = True
     End With
     ws.Rows(rowNum).RowHeight = 28
+    Exit Sub
+LocalFail:
+    LogErr "WriteTableHeader"
 End Sub
 
 
 Private Function GetOrCreateDashboardSheet(wb As Workbook) As Worksheet
     Dim ws As Worksheet
+
     On Error Resume Next
     Set ws = wb.Worksheets(DASHBOARD_SHEET)
-    On Error GoTo 0
+    On Error GoTo LocalFail
     If ws Is Nothing Then
         Set ws = wb.Worksheets.Add(Before:=wb.Worksheets(1))
         ws.Name = DASHBOARD_SHEET
     End If
     ws.Cells.Clear
     Set GetOrCreateDashboardSheet = ws
+    Exit Function
+LocalFail:
+    LogErr "GetOrCreateDashboardSheet"
 End Function
 
 
@@ -2356,8 +2732,9 @@ End Function
 Private Function ResolveLogoPath() As String
     Dim base As String, p As String
 
+    On Error GoTo LocalFail
     base = ThisWorkbook.Path
-    If Len(base) = 0 Then ResolveLogoPath = LOGO_FILE: Exit Function
+    If Len(base) = 0 Then ResolveLogoPath = "": Exit Function
 
     p = base & Application.PathSeparator & LOGO_DIR & Application.PathSeparator & LOGO_FILE
     If Dir(p) <> "" Then ResolveLogoPath = p: Exit Function
@@ -2366,6 +2743,9 @@ Private Function ResolveLogoPath() As String
     If Dir(p) <> "" Then ResolveLogoPath = p: Exit Function
 
     ResolveLogoPath = base & Application.PathSeparator & LOGO_DIR & Application.PathSeparator & LOGO_FILE
+    Exit Function
+LocalFail:
+    LogErr "ResolveLogoPath"
 End Function
 
 
@@ -2380,21 +2760,19 @@ Private Sub AddDashboardLogo(ws As Worksheet)
     Dim logoH As Double, logoW As Double, logoPath As String
     Dim oldSU As Boolean
 
+    On Error GoTo LocalFail
+
     logoH = 30
     oldSU = Application.ScreenUpdating
     Application.ScreenUpdating = True
 
     ' Remove any logo already on this dashboard.
-    On Error Resume Next
     ws.Shapes(LOGO_SHAPE).Delete
-    On Error GoTo 0
 
     ' 1) Load from documentation\aoti-logo.png (automation-safe).
     logoPath = ResolveLogoPath()
-    On Error Resume Next
     Set dst = ws.Shapes.AddPicture(Filename:=logoPath, LinkToFile:=False, _
                                    SaveWithDocument:=True, Left:=0, Top:=0, Width:=100, Height:=logoH)
-    On Error GoTo 0
     If Not dst Is Nothing Then
         dst.Name = LOGO_SHAPE
         logoW = dst.Width
@@ -2409,20 +2787,15 @@ Private Sub AddDashboardLogo(ws As Worksheet)
         Exit Sub
     End If
 
-    On Error Resume Next
     Set src = ThisWorkbook.Worksheets(START_SHEET).Shapes(LOGO_SHAPE)
     If src Is Nothing Then
         Application.ScreenUpdating = oldSU
-        On Error GoTo 0
         Exit Sub
     End If
-    On Error GoTo 0
 
     src.Copy
     ws.Paste
-    On Error Resume Next
     Set dst = ws.Shapes(ws.Shapes.Count)
-    On Error GoTo 0
     If dst Is Nothing Then
         Application.ScreenUpdating = oldSU
         Exit Sub
@@ -2434,18 +2807,27 @@ Private Sub AddDashboardLogo(ws As Worksheet)
     dst.Width = logoW
     PositionDashboardLogo ws, dst, logoH, logoW
     Application.ScreenUpdating = oldSU
+    Exit Sub
+LocalFail:
+    Application.ScreenUpdating = oldSU
+    LogErr "AddDashboardLogo"
 End Sub
 
 
 ' Top-left placement inside the white A1:B1 logo zone, vertically centered.
 Private Sub PositionDashboardLogo(ws As Worksheet, shp As Shape, ByVal logoH As Double, ByVal logoW As Double)
+    On Error GoTo LocalFail
     shp.Left = ws.Range("A1").Left + 6
     shp.Top = ws.Range("A1").Top + (ws.Rows(1).Height - logoH) / 2
     shp.Placement = xlMove
+    Exit Sub
+LocalFail:
+    LogErr "PositionDashboardLogo"
 End Sub
 
 
 Private Sub SortByColumnA(ws As Worksheet, ByVal headerRow As Long, ByVal lastRow As Long, ByVal lastCol As Long)
+    On Error GoTo LocalFail
     With ws.Sort
         .SortFields.Clear
         .SortFields.Add Key:=ws.Range(ws.Cells(headerRow + 1, 1), ws.Cells(lastRow, 1)), SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:=xlSortNormal
@@ -2455,4 +2837,76 @@ Private Sub SortByColumnA(ws As Worksheet, ByVal headerRow As Long, ByVal lastRo
         .Orientation = xlTopToBottom
         .Apply
     End With
+    Exit Sub
+LocalFail:
+    LogErr "SortByColumnA"
+End Sub
+' ===========================================================================
+' EMAIL - builds an Outlook email from the current report data
+' ===========================================================================
+' Contracts:
+'   * CreateEmailFromReport(outWb) - creates a new Outlook mail item, copies
+'     the dashboard data range with source formatting, pastes into the body,
+'     sets subject to "Annual Equipment Preventative Maintenance MM/DD/YYYY",
+'     and displays (does not send) so the user can add recipients.
+'   * Uses late binding so no reference to Outlook is required.
+' ===========================================================================
+
+Public Sub CreateEmailFromReport(outWb As Workbook)
+    On Error GoTo LocalFail
+
+    Dim olApp As Object, olMail As Object
+    Dim ws As Worksheet
+    Dim rng As Range
+    Dim wdDoc As Object, wdSel As Object
+    Dim subjectDate As String
+    Dim i As Long
+
+    subjectDate = Format$(Date, "mm/dd/yyyy")
+
+    ' Find the dashboard sheet
+    Set ws = Nothing
+    On Error Resume Next
+    Set ws = outWb.Sheets("Dashboard")
+    On Error GoTo LocalFail
+    If ws Is Nothing Then
+        For i = 1 To outWb.Sheets.Count
+            If outWb.Sheets(i).Name <> "Raw Data" And outWb.Sheets(i).Name <> "START HERE" Then
+                Set ws = outWb.Sheets(i)
+                Exit For
+            End If
+        Next i
+    End If
+    If ws Is Nothing Then
+        LogLine "CreateEmailFromReport: no suitable sheet found"
+        Exit Sub
+    End If
+
+    Set rng = ws.UsedRange
+    If rng Is Nothing Then
+        LogLine "CreateEmailFromReport: empty sheet"
+        Exit Sub
+    End If
+
+    rng.Copy
+
+    Set olApp = CreateObject("Outlook.Application")
+    Set olMail = olApp.CreateItem(0)
+
+    With olMail
+        .Subject = "Annual Equipment Preventative Maintenance " & subjectDate
+        .Display
+
+        Set wdDoc = .GetInspector.WordEditor
+        Set wdSel = wdDoc.Application.Selection
+
+        wdSel.EndKey 6
+        wdSel.Paste
+    End With
+
+    LogLine "CreateEmailFromReport: email created and displayed"
+    Exit Sub
+
+LocalFail:
+    LogErr "CreateEmailFromReport"
 End Sub
