@@ -3251,6 +3251,13 @@ Public Sub GenerateManagerEmail()
     With olMail
         .Subject = "PM Requests - " & subjectDate
         If Len(ccEmails) > 0 Then .CC = ccEmails
+        '' Add image reference at bottom if image exists
+        If Len(imagePath) > 0 Then
+            If Dir(imagePath) <> "" Then
+                htmlBody = htmlBody & "<br><br><img src=""cid:emailImage"" style=""max-width:600px"">"
+            End If
+        End If
+
         .HTMLBody = htmlBody
 
         ' Embed image if path exists
