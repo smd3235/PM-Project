@@ -1283,10 +1283,10 @@ Private Function GetOrCreateStartSheet() As Worksheet
     ActiveWindow.DisplayGridlines = False
     On Error GoTo 0
 
-    ' Protect the sheet: lock all cells, allow only button clicks
+    ' Protect the sheet: lock all cells, allow button clicks
     ws.Cells.Locked = True
     ws.Protect
-    ws.EnableSelection = xlNoSelection
+    ws.EnableSelection = xlUnlockedCells
 
     Set GetOrCreateStartSheet = ws
     Exit Function
