@@ -13,7 +13,7 @@ the prior week's report compared automatically.
 ## Work-PC build (macro-blocked machines)
 
 Download Project-Local-Build.zip from the repo, extract, and follow BUILD-INSTRUCTIONS.txt.
-The ZIP contains a macro-free Template (No Macros).xlsx plus all VBA modules;
+The ZIP contains a macro-free PM_Requests_Master_Template_(No Macros).xlsx plus all VBA modules;
 import them via Alt+F11 -> File -> Import File..., then Save As .xlsm.
 This avoids Windows/Org "Microsoft has blocked macros" issues on locked-down machines.
 ## Contents

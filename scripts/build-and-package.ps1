@@ -20,7 +20,7 @@ $root = Split-Path -Parent $PSScriptRoot
 $scripts = $PSScriptRoot
 $logDir = Join-Path $root "Logs"
 $xlsm = Join-Path $root "PM_Requests_Master_Template.xlsm"
-$macroFree = Join-Path $root "Template (No Macros).xlsx"
+$macroFree = Join-Path $root "PM_Requests_Master_Template_(No Macros).xlsx"
 $zipPath = Join-Path $root "Project-Local-Build.zip"
 
 Write-Host "=== STEP 1: Compile gate ==="
@@ -60,7 +60,7 @@ Write-Host "  ZIP: $zipPath"
 
 Write-Host "=== STEP 6: Commit & push ==="
 Push-Location $root
-git add "Template (No Macros).xlsx" "Project-Local-Build.zip" "BUILD-INSTRUCTIONS.txt" "PM_Report_Macro.bas" "PM_Requests_Master_Template.xlsm"
+git add "PM_Requests_Master_Template_(No Macros).xlsx" "Project-Local-Build.zip" "BUILD-INSTRUCTIONS.txt" "PM_Report_Macro.bas" "PM_Requests_Master_Template.xlsm"
 $status = git status --porcelain
 if ($status) {
     git commit -m "chore: rebuild build package after successful build"
