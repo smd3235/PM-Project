@@ -228,10 +228,10 @@ Public Sub SetupEmailButtons(Optional ByVal Silent As Boolean = False)
     ws.Shapes("BtnEditCCEmails").Delete
     On Error GoTo ButtonFail
 
-    btnWidth = 170
-    btnHeight = 32
-    btnLeft = ws.Range("C23").Left + 4
-    btnTop = ws.Range("B23").Top + (ws.Rows(23).Height - btnHeight) / 2
+    btnWidth = 160
+    btnHeight = 30
+    btnLeft = ws.Range("C20").Left + 4
+    btnTop = ws.Range("B20").Top + (ws.Rows(20).Height - btnHeight) / 2
 
     Set shp = ws.Shapes.AddShape(5, btnLeft, btnTop, btnWidth, btnHeight)
     shp.Name = "BtnManagerTemplate"
@@ -253,7 +253,7 @@ Public Sub SetupEmailButtons(Optional ByVal Silent As Boolean = False)
     End With
     shp.OnAction = action1
 
-    btnLeft = btnLeft + btnWidth + 10
+    btnLeft = btnLeft + btnWidth + 8
     Set shp = ws.Shapes.AddShape(5, btnLeft, btnTop, btnWidth, btnHeight)
     shp.Name = "BtnDirectorTemplate"
     With shp
@@ -299,10 +299,10 @@ Public Sub SetupGenerateEmailButton(Optional ByVal Silent As Boolean = False)
     ws.Shapes("BtnGenerateEmail").Delete
     On Error GoTo ButtonFail
 
-    btnWidth = 170
-    btnHeight = 32
-    btnLeft = ws.Range("C23").Left + 4
-    btnTop = ws.Range("B24").Top + (ws.Rows(24).Height - btnHeight) / 2
+    btnWidth = 160
+    btnHeight = 30
+    btnLeft = ws.Range("C20").Left + 4
+    btnTop = ws.Range("B21").Top + (ws.Rows(21).Height - btnHeight) / 2
 
     Set shp = ws.Shapes.AddShape(5, btnLeft, btnTop, btnWidth, btnHeight)
     shp.Name = "BtnGenerateEmail"
@@ -1101,8 +1101,8 @@ Private Function GetOrCreateStartSheet() As Worksheet
     ws.Rows(15).RowHeight = 12
     ws.Rows(16).RowHeight = 24
     ws.Rows("17:19").RowHeight = 20
-    ws.Rows(20).RowHeight = 12
-    ws.Rows(21).RowHeight = 18
+    ws.Rows(20).RowHeight = 24
+    ws.Rows(21).RowHeight = 36
 
     ' Two-tone rule under the title: navy across the title, gold to the right edge.
     ws.Range("B4:D4").Interior.Color = RGB(31, 78, 121)
@@ -1159,6 +1159,19 @@ Private Function GetOrCreateStartSheet() As Worksheet
 
     ' CTA band: the button sits on this light blue strip.
     ws.Range("B14:F14").Interior.Color = RGB(221, 235, 247)
+
+    ' Email templates bar + buttons area.
+    With ws.Range("B20:F20")
+        .Merge
+        .Value = "EMAIL TEMPLATES"
+        .Interior.Color = RGB(70, 130, 180)
+        .Font.Bold = True
+        .Font.Size = 12
+        .Font.Color = RGB(255, 255, 255)
+        .HorizontalAlignment = xlLeft
+        .VerticalAlignment = xlCenter
+    End With
+    ws.Range("B20").IndentLevel = 1
 
     ' GOOD TO KNOW bar + bullets.
     With ws.Range("B16:F16")
