@@ -332,6 +332,57 @@ ButtonFail:
     If Not Silent Then MsgBox "I could not install the button." & vbCrLf & Err.Description, vbCritical
 End Sub
 
+Public Sub SetupDoneButtons(Optional ByVal Silent As Boolean = False)
+    Dim ws As Worksheet, shp As Shape
+    Dim action As String
+    Dim btnWidth As Double, btnHeight As Double
+    Dim btnLeft As Double, btnTop As Double
+
+    On Error GoTo ButtonFail
+
+    action = "'" & ThisWorkbook.Name & "'!DoneEditing"
+
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.Name = "Manager Email Template" Or ws.Name = "Director Email Template" Then
+            On Error Resume Next
+            ws.Shapes("BtnDone").Delete
+            On Error GoTo ButtonFail
+
+            btnWidth = 180
+            btnHeight = 24
+            btnLeft = ws.Range("I2").Left
+            btnTop = 4
+
+            Set shp = ws.Shapes.AddShape(5, btnLeft, btnTop, btnWidth, btnHeight)
+            shp.Name = "BtnDone"
+            With shp
+                .Fill.ForeColor.RGB = RGB(31, 78, 121)
+                .Fill.Solid
+                .Line.ForeColor.RGB = RGB(31, 78, 121)
+                .Line.Weight = 1
+                With .TextFrame
+                    .Characters.Text = "Done - Return to START HERE"
+                    .HorizontalAlignment = xlCenter
+                    .VerticalAlignment = xlCenter
+                    .Characters.Font.Name = "Segoe UI"
+                    .Characters.Font.Size = 9
+                    .Characters.Font.Bold = True
+                    .Characters.Font.Color = RGB(255, 255, 255)
+                End With
+                .Placement = xlMove
+            End With
+            shp.OnAction = action
+        End If
+    Next ws
+
+    If Not Silent Then MsgBox "Done buttons are ready.", vbInformation
+    Exit Sub
+
+ButtonFail:
+    LogErr "SetupDoneButtons"
+    If Not Silent Then MsgBox "I could not install the Done buttons." & vbCrLf & Err.Description, vbCritical
+End Sub
+
 Public Sub GenerateReportEmail()
     On Error GoTo LocalFail
     Dim wb As Workbook
@@ -401,6 +452,7 @@ Public Sub RebuildStartSheet()
     SetupReportButton True
     SetupEmailButtons True
     SetupGenerateEmailButton True
+    SetupDoneButtons True
 End Sub
 
 
