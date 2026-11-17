@@ -415,16 +415,6 @@ change is logged there with a `YYYY-MM-DD HH:mm:ss` timestamp.
 VBA source, the mandatory compile/sync/run loop, Excel handling rules, the logging format,
 the file layout, and version control.
 
-## Template Screenshots
+## Sample Manager Tab
 
-### START HERE
-
-![START HERE](documentation/screenshots/template-start-here.png)
-
-### Manager Email Template
-
-![Manager Email Template](documentation/screenshots/template-manager-email-template.png)
-
-### Director Email Template
-
-![Director Email Template](documentation/screenshots/template-director-email-template.png)
+![Sample Manager Tab](documentation/screenshots/sample-manager-tab.png)
