@@ -1,4 +1,4 @@
-﻿# sync_template.py
+# sync_template.py
 # Re-imports PM_Report_Macro.bas into the template's embedded VBA project
 # and rebuilds the START HERE tab.
 # Run this after every change to PM_Report_Macro.bas.
@@ -32,7 +32,7 @@ if not os.path.exists(bas):
 excel = win32com.client.Dispatch("Excel.Application")
 excel.Visible = False
 excel.DisplayAlerts = False
-excel.AutomationSecurity = 3
+excel.AutomationSecurity = 1  # msoAutomationSecurityLow
 
 try:
     wb = excel.Workbooks.Open(template)
@@ -68,7 +68,7 @@ if not args.skip_package:
     excel2 = win32com.client.Dispatch("Excel.Application")
     excel2.Visible = False
     excel2.DisplayAlerts = False
-    excel2.AutomationSecurity = 3
+    excel2.AutomationSecurity = 1
     try:
         wb2 = excel2.Workbooks.Open(template)
         if os.path.exists(no_macro_path):
