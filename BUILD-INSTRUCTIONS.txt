@@ -25,7 +25,7 @@ security ("Microsoft has blocked macros...").
 
 STEP 3 - OPEN THE MACRO-FREE TEMPLATE
 --------------------------------------
-1. Open "Template (No Macros).xlsx" in desktop Excel.
+1. Open "PM_Requests_Master_Template_(No Macros).xlsx" in desktop Excel.
 2. This workbook has the same layout/sheets/button(s) as the final template but
    contains NO VBA project.
 
