@@ -344,7 +344,9 @@ Public Sub SetupDoneButtons(Optional ByVal Silent As Boolean = False)
 
     For Each ws In ThisWorkbook.Worksheets
         If ws.Name = "Manager Email Template" Or ws.Name = "Director Email Template" Then
+            ' Unprotect to allow button creation
             On Error Resume Next
+            ws.Unprotect
             ws.Shapes("BtnDone").Delete
             On Error GoTo ButtonFail
 
@@ -360,18 +362,19 @@ Public Sub SetupDoneButtons(Optional ByVal Silent As Boolean = False)
                 .Fill.Solid
                 .Line.ForeColor.RGB = RGB(31, 78, 121)
                 .Line.Weight = 1
-                With .TextFrame
-                    .Characters.Text = "Done - Return to START HERE"
-                    .HorizontalAlignment = xlCenter
-                    .VerticalAlignment = xlCenter
-                    .Characters.Font.Name = "Segoe UI"
-                    .Characters.Font.Size = 9
-                    .Characters.Font.Bold = True
-                    .Characters.Font.Color = RGB(255, 255, 255)
-                End With
+                .TextFrame2.TextRange.Text = "Done - Return to START HERE"
+                .TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignCenter
+                .TextFrame2.TextRange.Font.Name = "Segoe UI"
+                .TextFrame2.TextRange.Font.Size = 9
+                .TextFrame2.TextRange.Font.Bold = msoTrue
+                .TextFrame2.TextRange.Font.Fill.ForeColor.RGB = RGB(255, 255, 255)
                 .Placement = xlMove
             End With
             shp.OnAction = action
+
+            ' Re-protect
+            ws.Protect
+            ws.EnableSelection = xlUnlockedCells
         End If
     Next ws
 
