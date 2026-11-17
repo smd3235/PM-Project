@@ -5,7 +5,23 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
 
 ## 1.4
 
-### 2026-11-14 01:35:00
+### 2026-11-17 22:49:53
+- Recovered `PM_Report_Macro.bas` and `PM_Requests_Master_Template_(No Macros).xlsx` from `Project-Local-Build.zip` after project corruption.
+- Broke `PM_Report_Macro.bas` into six modules by concern:
+  `PM_Report_Macro` (shared declarations + run-log + RunReport), `PM_Report_UI`,
+  `PM_Report_Host`, `PM_Report_Setup`, `PM_Report_Data`, `PM_Report_Output`.
+  All module-level declarations are now `Public` (visible across modules) and all
+  procedures are `Public` (cross-module calls compile). MAP regenerated per module.
+- Rebuilt `scripts/sync_template.py` to import/package all modules; regenerated
+  `Project-Local-Build.zip` with every module file.
+- Created `scripts/run-report.py` — mandatory loop step 3, end-to-end build via
+  `RunReport(source, outputFolder, priorPath)` against the fake export.
+- Created `scripts/monitor-logs.py` — realtime run-log/watcher monitoring that
+  flags `!!! ERROR` lines and stall gaps (>10s).
+- Updated `scripts/test-compile.py` to durably write `Logs\compile-errors.log` on
+  gate failure; updated `scripts/check-toc.py` for the multi-module layout.
+- Mandatory loop verified: test-compile COMPILE OK, sync_template imported all
+  modules and rebuilt START HERE, run-report `RESULT=OK|...|124|0|`.
 - Four bugs found by reading `PM_Report_Macro.bas` end to end, each confirmed
   against a real build before and after the fix.
   - **The log's `prior report:` line always said `newPMs=0`.** It was written

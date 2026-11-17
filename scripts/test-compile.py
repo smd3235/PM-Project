@@ -29,6 +29,7 @@ log_dir = os.path.join(project_root, "Logs")
 os.makedirs(log_dir, exist_ok=True)
 watch_log = os.path.join(log_dir, "watcher.log")
 test_log = os.path.join(log_dir, "compile-test.log")
+err_log = os.path.join(log_dir, "compile-errors.log")
 
 
 def log(msg):
@@ -126,12 +127,21 @@ if compile_ok:
     log("RESULT: COMPILE OK - probe executed, project compiled cleanly.")
 else:
     log("RESULT: COMPILE FAILED - probe did not execute.")
+    where = ""
     if new_lines:
+        where = " | dialog=" + " / ".join(l.rstrip() for l in new_lines)
         log("Captured dialog text (Logs\\watcher.log):")
         for l in new_lines:
             log("  " + l.rstrip())
     else:
         log(f"No dialog captured. Run error: {run_error}")
+    err_line = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | COMPILE FAILED - probe did not execute{where}"
+    try:
+        with open(err_log, "a", encoding="utf-8") as f:
+            f.write(err_line + "\n")
+    except Exception:
+        pass
+    log(f"Full error details written to Logs\\compile-errors.log")
 
 if watchdog_timer and watchdog_timer.is_alive():
     watchdog_timer.join(timeout=1)

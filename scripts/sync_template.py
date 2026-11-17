@@ -39,14 +39,29 @@ try:
     wb = excel.Workbooks.Open(template)
     vbp = wb.VBProject
 
-    # Remove existing module if present
+    # Remove every PM_Report_* module if present, then import all modules.
+    module_basenames = [
+        "PM_Report_Macro.bas",
+        "PM_Report_UI.bas",
+        "PM_Report_Host.bas",
+        "PM_Report_Setup.bas",
+        "PM_Report_Data.bas",
+        "PM_Report_Output.bas",
+    ]
+    module_names = [os.path.splitext(b)[0] for b in module_basenames]
+
     for c in list(vbp.VBComponents):
-        if c.Name == "PM_Report_Macro":
+        if c.Name in module_names:
             vbp.VBComponents.Remove(c)
 
-    # Import the .bas module
-    vbp.VBComponents.Import(bas)
-    print(f"Imported PM_Report_Macro from {bas}")
+    bas_dir = os.path.dirname(os.path.abspath(bas))
+    for b in module_basenames:
+        module_path = os.path.join(bas_dir, b)
+        if not os.path.exists(module_path):
+            print(f"Module not found: {module_path}", file=sys.stderr)
+            sys.exit(1)
+        vbp.VBComponents.Import(module_path)
+        print(f"Imported {b}")
 
     # Rebuild START HERE (calls RebuildStartSheet via macro)
     try:
@@ -131,7 +146,7 @@ if not args.skip_package:
         except Exception:
             pass
 
-    module_files = [bas]
+    module_files = [os.path.join(bas_dir, b) for b in module_basenames]
     zip_items = [no_macro_path] + module_files
     if os.path.exists(instructions_path):
         zip_items.append(instructions_path)
