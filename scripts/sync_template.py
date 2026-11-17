@@ -29,10 +29,11 @@ if not os.path.exists(bas):
     print(f"Bas not found: {bas}", file=sys.stderr)
     sys.exit(1)
 
-excel = win32com.client.Dispatch("Excel.Application")
-excel.Visible = False
-excel.DisplayAlerts = False
-excel.AutomationSecurity = 1  # msoAutomationSecurityLow
+excel = win32com.client.DispatchEx("Excel.Application")
+try:
+    excel.Visible = False
+except Exception:
+    pass
 
 try:
     wb = excel.Workbooks.Open(template)
@@ -90,26 +91,41 @@ try:
     wb.Close(True)
     print(f"Synced template: {template}")
 finally:
-    excel.Quit()
+    try:
+        excel.Quit()
+    except Exception:
+        pass
 
 if not args.skip_package:
     no_macro_path = os.path.join(project_root, "PM_Requests_Master_Template_(No Macros).xlsx")
     instructions_path = os.path.join(project_root, "BUILD-INSTRUCTIONS.txt")
     zip_path = os.path.join(project_root, "Project-Local-Build.zip")
 
-    excel2 = win32com.client.Dispatch("Excel.Application")
-    excel2.Visible = False
-    excel2.DisplayAlerts = False
+    excel2 = win32com.client.DispatchEx("Excel.Application")
+    try:
+        excel2.Visible = False
+    except Exception:
+            pass
     excel2.AutomationSecurity = 1
     try:
         wb2 = excel2.Workbooks.Open(template)
+        # Remove VBA project
+        try:
+            vbp2 = wb2.VBProject
+            for c in list(vbp2.VBComponents):
+                vbp2.VBComponents.Remove(c)
+        except Exception:
+            pass
         if os.path.exists(no_macro_path):
             os.remove(no_macro_path)
         wb2.SaveAs(no_macro_path, FileFormat=51)
         wb2.Close(False)
         print(f"Created macro-free base: {no_macro_path}")
     finally:
-        excel2.Quit()
+        try:
+            excel2.Quit()
+        except Exception:
+            pass
 
     module_files = [bas]
     zip_items = [no_macro_path] + module_files

@@ -1,4 +1,4 @@
-﻿# check-toc.py
+# check-toc.py
 # Verifies the MAP block in PM_Report_Macro.bas against the file.
 # Usage: python scripts/check-toc.py [--fix]
 

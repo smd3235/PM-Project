@@ -1,4 +1,4 @@
-﻿# update-docs.py
+# update-docs.py
 # Captures screenshots of template sheets, updates README, and pushes to git.
 # Usage: python scripts/update-docs.py
 

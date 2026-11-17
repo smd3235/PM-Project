@@ -1,4 +1,4 @@
-﻿# watch-compile-error.py
+# watch-compile-error.py
 # Watches Excel/VBA modal dialogs and logs them to Logs\watcher.log
 
 import ctypes

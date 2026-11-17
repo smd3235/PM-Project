@@ -1,4 +1,4 @@
-﻿# test-compile.py
+# test-compile.py
 # Compile-test harness for PM_Report_Macro.bas
 # Copies the template, injects a tiny probe macro, then runs it via COM.
 # Running ANY macro forces VBA to compile the ENTIRE project.

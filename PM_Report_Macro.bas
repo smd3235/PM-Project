@@ -2377,7 +2377,7 @@ Private Sub AddPolishedCard(ws As Worksheet, ByVal address As String, ByVal labe
     If colorChange Then accent = ChangeColor(value) Else accent = RGB(31, 78, 121)
 
     hdr.Value = UCase$(label)
-    If Len(eyebrow) > 0 Then hdr.Value = UCase$(eyebrow) & " · " & UCase$(label)
+    If Len(eyebrow) > 0 Then hdr.Value = UCase$(eyebrow) & " " & ChrW(183) & " " & UCase$(label)
     valBox.Value = CStr(value)
 
     With box

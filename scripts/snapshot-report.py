@@ -1,4 +1,4 @@
-﻿# snapshot-report.py
+# snapshot-report.py
 # Exports sheets of a PM report as PNG images.
 # Usage: python scripts/snapshot-report.py [--path PATH] [--sheets SHEET1,SHEET2] [--out-folder FOLDER]
 
