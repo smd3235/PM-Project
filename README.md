@@ -414,3 +414,17 @@ change is logged there with a `YYYY-MM-DD HH:mm:ss` timestamp.
 [documentation/AGENTS.md](documentation/AGENTS.md) is the canonical rule set: the one true
 VBA source, the mandatory compile/sync/run loop, Excel handling rules, the logging format,
 the file layout, and version control.
+
+## Template Screenshots
+
+### START HERE
+
+![START HERE](documentation/screenshots/template-start-here.png)
+
+### Manager Email Template
+
+![Manager Email Template](documentation/screenshots/template-manager-email-template.png)
+
+### Director Email Template
+
+![Director Email Template](documentation/screenshots/template-director-email-template.png)
