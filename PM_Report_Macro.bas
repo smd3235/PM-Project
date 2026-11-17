@@ -223,6 +223,7 @@ Public Sub SetupEmailButtons(Optional ByVal Silent As Boolean = False)
     On Error Resume Next
     ws.Shapes("BtnManagerTemplate").Delete
     ws.Shapes("BtnDirectorTemplate").Delete
+    ws.Shapes("BtnGenerateEmail").Delete
     ws.Shapes("BtnEditEmailTemplate").Delete
     ws.Shapes("BtnEditToEmails").Delete
     ws.Shapes("BtnEditCCEmails").Delete
@@ -454,7 +455,6 @@ Public Sub RebuildStartSheet()
     SetupSheetVisibility
     SetupReportButton True
     SetupEmailButtons True
-    SetupGenerateEmailButton True
     SetupDoneButtons True
 End Sub
 
