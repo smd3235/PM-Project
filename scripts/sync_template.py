@@ -87,3 +87,10 @@ if not args.skip_package:
         for item in zip_items:
             zf.write(item, arcname=os.path.basename(item))
     print(f"Built local build package: {zip_path}")
+
+# Auto-update docs, screenshots, and push to git
+try:
+    import subprocess
+    subprocess.run([sys.executable, os.path.join(script_dir, "update-docs.py")], check=True)
+except Exception as e:
+    print("update-docs failed: " + str(e))
