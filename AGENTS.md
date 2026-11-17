@@ -9,8 +9,8 @@ Short version, so this file is useful on its own:
 
 - `PM_Report_Macro.bas` is the only source of truth for VBA; never edit the
   module inside the `.xlsm`.
-- Every `.bas` change: `.\scripts\test-compile.ps1`, then
-  `.\scripts\sync_template.ps1`, then `.\scripts\run-report.ps1`.
+- Every `.bas` change: `python scripts/test-compile.py`, then
+  `python scripts/sync_template.py`, then `python scripts/run-report.py`.
 - The build must return `RESULT=OK|...|106|18|0|<prior>`.
 - New test scripts go in `scripts\`; Markdown and image assets go in
   `documentation\`; run logs go in `Logs\`; generated reports in `Reports\`.

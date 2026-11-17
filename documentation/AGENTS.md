@@ -11,15 +11,15 @@ These rules apply to every change, no exceptions.
   legal object name"), which is why the file name and the identifier both use
   underscores. The `START HERE` button runs `BuildManagerTabs` by procedure name,
   so the module name is invisible to users.
-- `scripts\sync_template.ps1` is the only supported way to push a `.bas` change
+- `scripts\sync_template.py` is the only supported way to push a `.bas` change
   into `PM_Requests_Master_Template.xlsm`.
 
 ## 2. Mandatory loop after any `.bas` change
 
-1. `.\scripts\test-compile.ps1` — compile gate (fast, seconds). It compiles the
+1. `.\scripts\test-compile.py` — compile gate (fast, seconds). It compiles the
    whole project, not a call graph.
-2. `.\scripts\sync_template.ps1` — import into the master and rebuild `START HERE`.
-3. `.\scripts\run-report.ps1` — full end-to-end build against the fake export.
+2. `.\scripts\sync_template.py` — import into the master and rebuild `START HERE`.
+3. `.\scripts\run-report.py` — full end-to-end build against the fake export.
 4. `/logs` — read the run log; every step is timestamped with milliseconds since
    the previous line.
 5. Kill any stray `EXCEL` process before finishing.
@@ -31,7 +31,7 @@ manager). Anything else is a bug.
 
 - **Prove your fixture when you test a detector.** A broken workbook that was built
   and closed without saving gives a false pass and looks exactly like a working
-  gate. After editing the gate run `.\scripts\test-compile.ps1 -SelfTest`: it
+  gate. After editing the gate run `.\scripts\test-compile.py -SelfTest`: it
   injects a broken procedure, asserts the gate fails, removes it, and asserts the
   gate passes. If it prints `SELFTEST FAILED`, believe it over your reading of the
   output.
@@ -48,23 +48,23 @@ manager). Anything else is a bug.
   reliable way to find out where it stopped.
 - **Never leave Excel running** after a test. Kill `EXCEL` and any worker process.
 - **Modal dialogs must be logged with their full text before being dismissed.**
-  `scripts\watch-compile-error.ps1` does this into `Logs\watcher.log`.
+  `scripts\watch-compile-error.py` does this into `Logs\watcher.log`.
 - Compile errors surface through modal dialogs, not exceptions:
   `Application.Run` raises `0x800A03E8`/`0x800706BE` with no message. Read
   `Logs\watcher.log` for the dialog text.
 - VBA compiles **one procedure at a time** (compile-on-demand), so running a
   procedure does not compile its neighbours: a typo in a procedure nobody calls
-  survives every `Application.Run`. `scripts\test-compile.ps1` therefore triggers
+  survives every `Application.Run`. `scripts\test-compile.py` therefore triggers
   **Debug > Compile VBAProject** (VBE command bar, Debug menu, control id 578),
   which compiles every procedure in every module. That is the gate; run it before
-  `sync_template.ps1`.
+  `sync_template.py`.
 
 ## 4. VBA-specific rules
 
 - The module is one file with a **MAP block** at the top: section start lines and
   the procedures in each section. Each section also carries its own contract
   (what it owns, its entry points, and what must stay true).
-  After moving code between sections, run `.\scripts\check-toc.ps1` and fix any
+  After moving code between sections, run `.\scripts\check-toc.py` and fix any
   drift with `-Fix`; a stale MAP is worse than none, because it sends the next
   reader to the wrong place.
 - All module-level declarations (`Const`, `Dim`) belong in the **declarations
@@ -117,7 +117,7 @@ output in `Reports\`; master snapshots in `backups\`.
 - Update `CHANGELOG.md` with every change, newest entry first, format
   `- **HH:MM:SS** — what changed and why.`
 - Update `README.md` (root) when paths, scripts, or behaviour change, and regenerate
-  `documentation/screenshots/` after any layout change with `scripts\snapshot-report.ps1`.
+  `documentation/screenshots/` after any layout change with `scripts\snapshot-report.py`.
 - Everything else Markdown stays in `documentation/` (plus the root `AGENTS.md` stub and
   `.kilo/command/*.md`, which Kilo must find where it is).
 
@@ -125,7 +125,7 @@ output in `Reports\`; master snapshots in `backups\`.
 
 The sibling **Pending Pickup** project (the other project folder next to this one) is a
 separate report builder with the same harness design and different data.
-`scripts\audit-peer.ps1` (via `/audit`) compares the two read-only and reports what each side
+`scripts\audit-peer.py` (via `/audit`) compares the two read-only and reports what each side
 has that the other does not: files, VBA procedure names, script function names, and Markdown
 sections. It finds the sibling by itself; no absolute path is written down.
 
