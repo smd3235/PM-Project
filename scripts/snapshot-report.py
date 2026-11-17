@@ -43,10 +43,10 @@ for f in os.listdir(out_folder):
     if f.endswith(".png"):
         os.remove(os.path.join(out_folder, f))
 
-excel = win32com.client.Dispatch("Excel.Application")
-excel.Visible = True
+excel = win32com.client.DispatchEx("Excel.Application")
+excel.Visible = False
 excel.DisplayAlerts = False
-excel.AutomationSecurity = 3
+excel.AutomationSecurity = 1
 
 wb = None
 exported = 0
