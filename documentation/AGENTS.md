@@ -43,7 +43,12 @@ manager). Anything else is a bug.
 
 ## 3. Excel handling — hard rules
 
-- **A run that stalls is killed after 10 seconds** with no new log line. Excel
+- **No blocking Excel call may wait longer than 15 seconds.** Every script
+  wraps blocking COM calls (`Workbooks.Open`, `Application.Run`, `SaveAs`,
+  `chart.Export`) in `scripts\excel_guard.py` (`ExcelGuard`), which kills the
+  Excel process and logs the hang to `Logs\excel-hangs.log` if the timeout is
+  exceeded. Nothing in the pipeline waits minutes for a stuck macro.
+- A run that stalls is killed after 15 seconds with no new log line. Excel
   dialogs are modal and will hang headless automation silently; this is the only
   reliable way to find out where it stopped.
 - **Never leave Excel running** after a test. Kill `EXCEL` and any worker process.
