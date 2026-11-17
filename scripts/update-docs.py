@@ -18,6 +18,7 @@ os.makedirs(out_folder, exist_ok=True)
 
 excel = win32com.client.Dispatch("Excel.Application")
 excel.Visible = True
+
 # Clear existing template screenshots
 for f in os.listdir(out_folder):
     if f.startswith("template-") and f.endswith(".png"):
