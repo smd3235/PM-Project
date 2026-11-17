@@ -214,15 +214,15 @@ Public Sub SetupEmailButtons(Optional ByVal Silent As Boolean = False)
 
     On Error GoTo ButtonFail
 
-    action1 = "'" & ThisWorkbook.Name & "'!EditToEmails"
-    action2 = "'" & ThisWorkbook.Name & "'!EditCCEmails"
+    action1 = "'" & ThisWorkbook.Name & "'!SetupManagerEmail"
+    action2 = "'" & ThisWorkbook.Name & "'!SetupDirectorEmail"
 
     Set ws = GetOrCreateStartSheet()
 
     ' Remove old buttons if they exist
     On Error Resume Next
-    ws.Shapes("BtnEditToEmails").Delete
-    ws.Shapes("BtnEditCCEmails").Delete
+    ws.Shapes("BtnManagerTemplate").Delete
+    ws.Shapes("BtnDirectorTemplate").Delete
     On Error GoTo ButtonFail
 
     btnWidth = 170
@@ -231,14 +231,14 @@ Public Sub SetupEmailButtons(Optional ByVal Silent As Boolean = False)
     btnTop = ws.Range("B23").Top + (ws.Rows(23).Height - btnHeight) / 2
 
     Set shp = ws.Shapes.AddShape(5, btnLeft, btnTop, btnWidth, btnHeight)
-    shp.Name = "BtnEditToEmails"
+    shp.Name = "BtnManagerTemplate"
     With shp
         .Fill.ForeColor.RGB = RGB(70, 130, 180)
         .Fill.Solid
         .Line.ForeColor.RGB = RGB(46, 96, 148)
         .Line.Weight = 1
         With .TextFrame
-            .Characters.Text = "Edit To Emails"
+            .Characters.Text = "Manager Template"
             .HorizontalAlignment = xlCenter
             .VerticalAlignment = xlCenter
             .Characters.Font.Name = "Segoe UI"
@@ -252,14 +252,14 @@ Public Sub SetupEmailButtons(Optional ByVal Silent As Boolean = False)
 
     btnLeft = btnLeft + btnWidth + 10
     Set shp = ws.Shapes.AddShape(5, btnLeft, btnTop, btnWidth, btnHeight)
-    shp.Name = "BtnEditCCEmails"
+    shp.Name = "BtnDirectorTemplate"
     With shp
         .Fill.ForeColor.RGB = RGB(70, 130, 180)
         .Fill.Solid
         .Line.ForeColor.RGB = RGB(46, 96, 148)
         .Line.Weight = 1
         With .TextFrame
-            .Characters.Text = "Edit CC Emails"
+            .Characters.Text = "Director Template"
             .HorizontalAlignment = xlCenter
             .VerticalAlignment = xlCenter
             .Characters.Font.Name = "Segoe UI"
@@ -362,9 +362,29 @@ LocalFail:
     LogErr "SetupSheetVisibility"
 End Sub
 
+Public Sub SetupManagerEmail()
+    On Error GoTo LocalFail
+    ThisWorkbook.Sheets("Manager Email Template").Visible = xlSheetVisible
+    ThisWorkbook.Sheets("Manager Email Template").Activate
+    ThisWorkbook.Sheets("Manager Email Template").Range("D5").Select
+    Exit Sub
+LocalFail:
+    LogErr "SetupManagerEmail"
+End Sub
+
+Public Sub SetupDirectorEmail()
+    On Error GoTo LocalFail
+    ThisWorkbook.Sheets("Director Email Template").Visible = xlSheetVisible
+    ThisWorkbook.Sheets("Director Email Template").Activate
+    ThisWorkbook.Sheets("Director Email Template").Range("D5").Select
+    Exit Sub
+LocalFail:
+    LogErr "SetupDirectorEmail"
+End Sub
+
 Public Sub DoneEditing()
     On Error GoTo LocalFail
-    If ActiveSheet.Name = "EmailSettings" Or ActiveSheet.Name = "EmailTemplate" Then
+    If ActiveSheet.Name = "Manager Email Template" Or ActiveSheet.Name = "Director Email Template" Then
         ActiveSheet.Visible = xlSheetHidden
     End If
     ThisWorkbook.Sheets("START HERE").Activate
@@ -3115,8 +3135,8 @@ Public Sub CreateEmailFromReport(outWb As Workbook)
 
     LogLine "CreateEmailFromReport: email created and displayed"
     On Error Resume Next
-    ThisWorkbook.Sheets("EmailSettings").Visible = xlSheetHidden
-    ThisWorkbook.Sheets("EmailTemplate").Visible = xlSheetHidden
+    ThisWorkbook.Sheets("Manager Email Template").Visible = xlSheetHidden
+    ThisWorkbook.Sheets("Director Email Template").Visible = xlSheetHidden
     On Error GoTo LocalFail
     Exit Sub
 
@@ -3139,12 +3159,12 @@ Private Function GetEmailTemplate() As String
     Dim ws As Worksheet
     Set ws = Nothing
     On Error Resume Next
-    Set ws = ThisWorkbook.Sheets("EmailTemplate")
+    Set ws = ThisWorkbook.Sheets("Director Email Template")
     On Error GoTo LocalFail
     If ws Is Nothing Then
         ' Create the sheet
         Set ws = ThisWorkbook.Sheets.Add
-        ws.Name = "EmailTemplate"
+        ws.Name = "Director Email Template"
         ws.Visible = xlSheetVisible
         ws.Range("A1").Value = "Hi" & vbCrLf & vbCrLf & _
             "Our records indicate that the following patient's equipment has been on an " & _
@@ -3169,11 +3189,11 @@ Private Function GetCCEmails() As String
     Dim ws As Worksheet
     Set ws = Nothing
     On Error Resume Next
-    Set ws = ThisWorkbook.Sheets("EmailSettings")
+    Set ws = ThisWorkbook.Sheets("Manager Email Template")
     On Error GoTo LocalFail
     If ws Is Nothing Then
         Set ws = ThisWorkbook.Sheets.Add
-        ws.Name = "EmailSettings"
+        ws.Name = "Manager Email Template"
         ws.Visible = xlSheetVisible
         ws.Range("A1").Value = "CC Emails (comma-separated):"
         ws.Range("D7").Value = ""
@@ -3187,9 +3207,9 @@ End Function
 
 Public Sub EditCCEmails()
     On Error GoTo LocalFail
-    ThisWorkbook.Sheets("EmailSettings").Visible = xlSheetVisible
-    ThisWorkbook.Sheets("EmailSettings").Activate
-    ThisWorkbook.Sheets("EmailSettings").Range("B1").Select
+    ThisWorkbook.Sheets("Manager Email Template").Visible = xlSheetVisible
+    ThisWorkbook.Sheets("Manager Email Template").Activate
+    ThisWorkbook.Sheets("Manager Email Template").Range("B1").Select
     Exit Sub
 LocalFail:
     LogErr "EditCCEmails"
@@ -3197,9 +3217,9 @@ End Sub
 
 Public Sub EditToEmails()
     On Error GoTo LocalFail
-    ThisWorkbook.Sheets("EmailSettings").Visible = xlSheetVisible
-    ThisWorkbook.Sheets("EmailSettings").Activate
-    ThisWorkbook.Sheets("EmailSettings").Range("B3").Select
+    ThisWorkbook.Sheets("Manager Email Template").Visible = xlSheetVisible
+    ThisWorkbook.Sheets("Manager Email Template").Activate
+    ThisWorkbook.Sheets("Manager Email Template").Range("B3").Select
     Exit Sub
 LocalFail:
     LogErr "EditToEmails"
@@ -3208,7 +3228,7 @@ End Sub
 Private Function GetToEmails() As String
     On Error GoTo LocalFail
     Dim ws As Worksheet
-    Set ws = ThisWorkbook.Sheets("EmailSettings")
+    Set ws = ThisWorkbook.Sheets("Manager Email Template")
     GetToEmails = CStr(ws.Range("D5").Value)
     Exit Function
 LocalFail:
@@ -3219,7 +3239,7 @@ End Function
 Private Function GetEmailSubject() As String
     On Error GoTo LocalFail
     Dim ws As Worksheet
-    Set ws = ThisWorkbook.Sheets("EmailSettings")
+    Set ws = ThisWorkbook.Sheets("Manager Email Template")
     Dim subj As String
     subj = CStr(ws.Range("D9").Value)
     If Len(subj) = 0 Then subj = "PM Requests - {{DATE}}"
@@ -3233,7 +3253,7 @@ End Function
 Private Function GetEmailBody() As String
     On Error GoTo LocalFail
     Dim ws As Worksheet
-    Set ws = ThisWorkbook.Sheets("EmailSettings")
+    Set ws = ThisWorkbook.Sheets("Manager Email Template")
     GetEmailBody = CStr(ws.Range("D11").Value)
     Exit Function
 LocalFail:
@@ -3263,29 +3283,24 @@ Public Sub GenerateManagerEmail()
     Dim cellVal As String
 
     subjectDate = Format(Date, "mm/dd/yyyy")
+
+    ' Read from Manager Email Template
+    Dim wsMgrTemplate As Worksheet
+    Set wsMgrTemplate = ThisWorkbook.Sheets("Manager Email Template")
     Dim emailSubject As String
     Dim emailBody As String
-    emailSubject = GetEmailSubject()
-    emailBody = GetEmailBody()
+    emailSubject = CStr(wsMgrTemplate.Range("D9").Value)
+    emailBody = CStr(wsMgrTemplate.Range("D11").Value)
     emailSubject = Replace(emailSubject, "{{DATE}}", subjectDate)
+    ccEmails = CStr(wsMgrTemplate.Range("D7").Value)
+    Dim toEmails As String
+    toEmails = CStr(wsMgrTemplate.Range("D5").Value)
+    imagePath = ""  ' Use EmailSettings image path if needed
 
-    ' Read HTML template from EmailTemplate sheet
-    Dim wsTemplate As Worksheet
-    Set wsTemplate = ThisWorkbook.Sheets("EmailTemplate")
     templateHtml = emailBody
     ' Convert plain text body to HTML, replacing {{REPORT}} with data table
     templateHtml = Replace(templateHtml, vbCrLf, "<br>")
     templateHtml = Replace(templateHtml, "{{REPORT}}", "{{REPORT_PLACEHOLDER}}")
-
-    ' Read CC emails
-    Dim wsSettings As Worksheet
-    Set wsSettings = ThisWorkbook.Sheets("EmailSettings")
-    ccEmails = CStr(wsSettings.Range("B1").Value)
-    Dim toEmails As String
-    toEmails = CStr(wsSettings.Range("B3").Value)
-
-    ' Read image path
-    imagePath = CStr(wsSettings.Range("B2").Value)
 
     ' Build HTML table from the manager tab data
     lastRow = ws.UsedRange.Rows.Count
@@ -3343,8 +3358,8 @@ Public Sub GenerateManagerEmail()
 
     LogLine "GenerateManagerEmail: email created for " & ws.Name
     On Error Resume Next
-    ThisWorkbook.Sheets("EmailSettings").Visible = xlSheetHidden
-    ThisWorkbook.Sheets("EmailTemplate").Visible = xlSheetHidden
+    ThisWorkbook.Sheets("Manager Email Template").Visible = xlSheetHidden
+    ThisWorkbook.Sheets("Director Email Template").Visible = xlSheetHidden
     On Error GoTo LocalFail
     Exit Sub
 
