@@ -48,12 +48,15 @@ manager). Anything else is a bug.
   `chart.Export`) in `scripts\excel_guard.py` (`ExcelGuard`), which kills the
   Excel process and logs the hang to `Logs\excel-hangs.log` if the timeout is
   exceeded. Nothing in the pipeline waits minutes for a stuck macro.
+- **Every Excel session runs a dialog watcher** (`scripts\DialogWatcher` in
+  `excel_guard.py` launching `scripts\watch-compile-error.py`) alongside it.
+  Modal popups (OK clicks, errors, file pickers) are captured with their full
+  text and printed in the script output, so a failure caused by a dialog is
+  visible instead of silent. Dialogs are also logged to `Logs\watcher.log`.
 - A run that stalls is killed after 15 seconds with no new log line. Excel
   dialogs are modal and will hang headless automation silently; this is the only
   reliable way to find out where it stopped.
 - **Never leave Excel running** after a test. Kill `EXCEL` and any worker process.
-- **Modal dialogs must be logged with their full text before being dismissed.**
-  `scripts\watch-compile-error.py` does this into `Logs\watcher.log`.
 - Compile errors surface through modal dialogs, not exceptions:
   `Application.Run` raises `0x800A03E8`/`0x800706BE` with no message. Read
   `Logs\watcher.log` for the dialog text.
