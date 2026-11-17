@@ -19,6 +19,42 @@ os.makedirs(out_folder, exist_ok=True)
 excel = win32com.client.Dispatch("Excel.Application")
 excel.Visible = True
 
+# Capture sample manager tab from latest report
+import glob as _glob
+report_files = sorted(_glob.glob(os.path.join(project_root, "Reports", "*.xlsx")), key=os.path.getmtime, reverse=True)
+if report_files:
+    try:
+        wb2 = excel.Workbooks.Open(report_files[0], False, True)
+        mgr_sheet = None
+        for s in wb2.Worksheets:
+            if s.Name not in ("Dashboard", "Raw Data", "START HERE"):
+                mgr_sheet = s
+                break
+        if mgr_sheet:
+            used = mgr_sheet.UsedRange
+            rng = mgr_sheet.Range(mgr_sheet.Cells(1, 1), mgr_sheet.Cells(used.Row + used.Rows.Count - 1, used.Column + used.Columns.Count - 1))
+            mgr_sheet.Activate()
+            excel.ActiveWindow.Zoom = 100
+            excel.ActiveWindow.DisplayGridlines = False
+            excel.ActiveWindow.DisplayHeadings = False
+            rng.CopyPicture(1, 2)
+            time.sleep(1)
+            png_path = os.path.join(out_folder, "sample-manager-tab.png")
+            chart = wb2.Charts.Add()
+            try:
+                chart.Paste()
+                time.sleep(1)
+                if os.path.exists(png_path):
+                    os.remove(png_path)
+                chart.Export(png_path)
+                print("Exported: " + png_path)
+            finally:
+                chart.Delete()
+        wb2.Close(False)
+    except Exception as e:
+        print("Report screenshot failed: " + str(e))
+
+
 # Clear existing template screenshots
 for f in os.listdir(out_folder):
     if f.startswith("template-") and f.endswith(".png"):
