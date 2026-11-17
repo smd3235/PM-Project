@@ -148,12 +148,19 @@ class DialogWatcher:
         return self
 
     def _read_new_dialogs(self):
-        """Return new watcher.log lines captured since start."""
+        """Return new watcher.log lines captured since start, filtered to
+        real dialog entries (DIALOG: or KILLED EXCEL)."""
         if not os.path.exists(watch_log):
             return []
         with open(watch_log, "r", encoding="utf-8") as f:
             lines = f.readlines()
-        return [l.rstrip("\n") for l in lines[self.start_lines:]]
+        new = lines[self.start_lines:]
+        dialogs = []
+        for l in new:
+            s = l.strip()
+            if "DIALOG:" in s or "KILLED EXCEL" in s:
+                dialogs.append(s)
+        return dialogs
 
     def __exit__(self, exc_type, exc, tb):
         dialogs = []
