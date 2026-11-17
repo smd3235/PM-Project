@@ -352,7 +352,7 @@ Public Sub SetupDoneButtons(Optional ByVal Silent As Boolean = False)
 
             btnWidth = 180
             btnHeight = 24
-            btnLeft = ws.Range("I2").Left
+            btnLeft = ws.Range("K2").Left + ws.Range("K2").Width - btnWidth - 4
             btnTop = 4
 
             Set shp = ws.Shapes.AddShape(5, btnLeft, btnTop, btnWidth, btnHeight)
