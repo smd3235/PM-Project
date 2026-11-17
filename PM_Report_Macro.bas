@@ -2309,7 +2309,7 @@ Private Sub FormatManagerSheet(ws As Worksheet, ByVal manager As String, _
     ws.Shapes("BtnGenEmail").Delete
     On Error GoTo LocalFail
     Dim btnShp As Shape
-    Set btnShp = ws.Shapes.AddShape(5, ws.Range("K1").Left + 200, ws.Range("A3").Top + 2, 200, 24)
+    Set btnShp = ws.Shapes.AddShape(5, 700, ws.Range("A3").Top + 2, 200, 24)
     btnShp.Name = "BtnGenEmail"
     With btnShp
         .Fill.ForeColor.RGB = RGB(34, 139, 34)
