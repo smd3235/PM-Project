@@ -13,7 +13,7 @@ import win32com.client
 parser = argparse.ArgumentParser(description="Sync VBA macro into PM template")
 parser.add_argument("--template", default=None)
 parser.add_argument("--bas", default=None)
-parser.add_argument("--skip-package", action="store_true")
+parser.add_argument("--package", action="store_true", help="also rebuild macro-free base + deploy zip + docs")
 args = parser.parse_args()
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -111,7 +111,7 @@ finally:
     except Exception:
         pass
 
-if not args.skip_package:
+if args.package:
     no_macro_path = os.path.join(project_root, "PM_Requests_Master_Template_(No Macros).xlsx")
     instructions_path = os.path.join(project_root, "BUILD-INSTRUCTIONS.txt")
     zip_path = os.path.join(project_root, "Project-Local-Build.zip")
