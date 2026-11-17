@@ -25,7 +25,7 @@ DEFAULT_TIMEOUT = 15  # seconds - nothing waits longer than this
 
 
 def log_pipeline(msg):
-    """Write a timestamped line to Logs\pipeline.log."""
+    """Write a timestamped line to Logs/pipeline.log."""
     line = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | {msg}"
     print(line)
     with open(pipeline_log, "a", encoding="utf-8") as f:
