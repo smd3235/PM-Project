@@ -5,10 +5,11 @@
 
 import argparse
 import os
+import subprocess
 import sys
 import zipfile
 
-import win32com.client
+from excel_guard import DEFAULT_TIMEOUT, ExcelGuard, start_excel
 
 parser = argparse.ArgumentParser(description="Sync VBA macro into PM template")
 parser.add_argument("--template", default=None)
@@ -29,16 +30,11 @@ if not os.path.exists(bas):
     print(f"Bas not found: {bas}", file=sys.stderr)
     sys.exit(1)
 
-excel = win32com.client.DispatchEx("Excel.Application")
-try:
-    excel.Visible = False
-    excel.DisplayAlerts = False
-    excel.AutomationSecurity = 1
-except Exception:
-    pass
+excel, excel_pid = start_excel()
 
 try:
-    wb = excel.Workbooks.Open(template)
+    with ExcelGuard(excel_pid, DEFAULT_TIMEOUT):
+        wb = excel.Workbooks.Open(template)
     vbp = wb.VBProject
 
     # Remove every PM_Report_* module if present, then import all modules.
@@ -67,7 +63,8 @@ try:
 
     # Rebuild START HERE (calls RebuildStartSheet via macro)
     try:
-        excel.Run("RebuildStartSheet")
+        with ExcelGuard(excel_pid, DEFAULT_TIMEOUT):
+            excel.Run("RebuildStartSheet")
         print("Rebuilt START HERE.")
     except Exception as e:
         print(f"RebuildStartSheet failed: {e}")
@@ -104,7 +101,8 @@ try:
         except Exception as e:
             print("Format " + sheet_name + " failed: " + str(e))
 
-    wb.Save()
+    with ExcelGuard(excel_pid, DEFAULT_TIMEOUT):
+        wb.Save()
     wb.Close(True)
     print(f"Synced template: {template}")
 
@@ -117,7 +115,8 @@ try:
         excel.AutomationSecurity = 1
         wb2 = None
         try:
-            wb2 = excel.Workbooks.Open(template)
+            with ExcelGuard(excel_pid, DEFAULT_TIMEOUT):
+                wb2 = excel.Workbooks.Open(template)
             try:
                 vbp2 = wb2.VBProject
                 for c in list(vbp2.VBComponents):
@@ -127,7 +126,8 @@ try:
             if os.path.exists(no_macro_path):
                 os.remove(no_macro_path)
             try:
-                wb2.SaveAs(no_macro_path, FileFormat=51)
+                with ExcelGuard(excel_pid, DEFAULT_TIMEOUT):
+                    wb2.SaveAs(no_macro_path, FileFormat=51)
                 wb2.Close(False)
                 wb2 = None
                 print(f"Created macro-free base: {no_macro_path}")
@@ -163,7 +163,7 @@ finally:
 
 # Auto-update docs, screenshots, and push to git
 try:
-    import subprocess
-    subprocess.run([sys.executable, os.path.join(script_dir, "update-docs.py")], check=True, timeout=120)
+    import subprocess as _subprocess
+    _subprocess.run([sys.executable, os.path.join(script_dir, "update-docs.py")], check=True, timeout=60)
 except Exception as e:
     print("update-docs failed: " + str(e))

@@ -133,7 +133,7 @@ def main():
     write_log(f"watcher started (pid {os.getpid()})")
     print(f"Watching Excel for dialogs -> {log_path}")
     print("Run the macro in Excel now. Stop with Ctrl+C.")
-    deadline = time.time() + 2 * 60 * 60
+    deadline = time.time() + 30 * 60
     try:
         while time.time() < deadline:
             time.sleep(0.6)

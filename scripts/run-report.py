@@ -7,12 +7,12 @@
 import argparse
 import os
 import sys
-import threading
-import time
 from datetime import datetime
 
 import psutil
 import win32com.client
+
+from excel_guard import DEFAULT_TIMEOUT, ExcelGuard, log_hang, start_excel
 
 parser = argparse.ArgumentParser(description="Run the PM report end-to-end via RunReport")
 parser.add_argument("--template", default=None)
@@ -52,51 +52,18 @@ if not os.path.exists(source):
 log(f"=== run-report started (template={template})")
 log(f"source={source}  output={out_folder}  prior={prior or '(auto)'}")
 
-excel = win32com.client.DispatchEx("Excel.Application")
-excel.Visible = False
-excel.DisplayAlerts = False
-excel.AutomationSecurity = 1
-
-watchdog_timer = None
-excel_pid = None
-
-try:
-    before = {p.pid for p in psutil.process_iter(["name"])
-              if p.info["name"] and p.info["name"].lower() == "excel.exe"}
-except Exception:
-    before = set()
+excel, excel_pid = start_excel()
 
 wb = None
 result = None
 try:
-    wb = excel.Workbooks.Open(template)
+    with ExcelGuard(excel_pid, DEFAULT_TIMEOUT):
+        wb = excel.Workbooks.Open(template)
 
-    def watchdog():
-        time.sleep(10)
-        try:
-            proc = psutil.Process(excel_pid)
-            proc.kill()
-            log(f"Watchdog killed Excel pid {excel_pid}.")
-        except Exception:
-            pass
+    with ExcelGuard(excel_pid, DEFAULT_TIMEOUT):
+        result = excel.Run("RunReport", source, out_folder, prior)
 
-    try:
-        after = {p.pid for p in psutil.process_iter(["name"])
-                 if p.info["name"] and p.info["name"].lower() == "excel.exe"}
-        new = after - before
-        excel_pid = next(iter(new)) if new else None
-    except Exception:
-        excel_pid = None
-
-    if excel_pid:
-        watchdog_timer = threading.Thread(target=watchdog, daemon=True)
-        watchdog_timer.start()
-
-    result = excel.Run("RunReport", source, out_folder, prior)
     log(f"RunReport returned: {result}")
-
-    if watchdog_timer and watchdog_timer.is_alive():
-        watchdog_timer.join(timeout=1)
 
     ok = isinstance(result, str) and result.startswith("OK|")
     log(f"RESULT={'OK' if ok else 'FAILED'}|{result if result else '(no result)'}")

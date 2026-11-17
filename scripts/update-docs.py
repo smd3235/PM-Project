@@ -7,9 +7,8 @@ import glob as _glob
 import os
 import subprocess
 import sys
-import time
 
-import win32com.client
+from excel_guard import DEFAULT_TIMEOUT, ExcelGuard, start_excel
 
 parser = argparse.ArgumentParser(description="Update docs screenshots and README")
 parser.add_argument("--push", action="store_true", help="also git push after local commit")
@@ -22,10 +21,7 @@ template = os.path.join(project_root, "PM_Requests_Master_Template.xlsm")
 out_folder = os.path.join(project_root, "documentation", "screenshots")
 os.makedirs(out_folder, exist_ok=True)
 
-excel = win32com.client.DispatchEx("Excel.Application")
-excel.Visible = False
-excel.DisplayAlerts = False
-excel.AutomationSecurity = 1
+excel, excel_pid = start_excel()
 
 
 def capture_sheet(wb, sheet_name, png_path):
@@ -44,14 +40,13 @@ def capture_sheet(wb, sheet_name, png_path):
     excel.ActiveWindow.DisplayGridlines = False
     excel.ActiveWindow.DisplayHeadings = False
     rng.CopyPicture(1, 2)
-    time.sleep(0.25)
     chart = wb.Charts.Add()
     try:
         chart.Paste()
-        time.sleep(0.25)
         if os.path.exists(png_path):
             os.remove(png_path)
-        chart.Export(png_path)
+        with ExcelGuard(excel_pid, DEFAULT_TIMEOUT):
+            chart.Export(png_path)
         print("Exported: " + png_path)
     finally:
         chart.Delete()
@@ -66,7 +61,8 @@ report_files = sorted(
 if report_files:
     wb2 = None
     try:
-        wb2 = excel.Workbooks.Open(report_files[0], False, True)
+        with ExcelGuard(excel_pid, DEFAULT_TIMEOUT):
+            wb2 = excel.Workbooks.Open(report_files[0], False, True)
         mgr_sheet = None
         for s in wb2.Worksheets:
             if s.Name not in ("Dashboard", "Raw Data", "START HERE"):
@@ -91,7 +87,8 @@ for f in os.listdir(out_folder):
 
 wb = None
 try:
-    wb = excel.Workbooks.Open(template, False, True)
+    with ExcelGuard(excel_pid, DEFAULT_TIMEOUT):
+        wb = excel.Workbooks.Open(template, False, True)
     for name, safe in [
         ("START HERE", "start-here"),
         ("Manager Email Template", "manager-email-template"),

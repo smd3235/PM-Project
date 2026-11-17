@@ -8,11 +8,13 @@ import os
 import shutil
 import subprocess
 import sys
-import threading
 import time
 from datetime import datetime
 
+import psutil
 import win32com.client
+
+from excel_guard import DEFAULT_TIMEOUT, ExcelGuard, start_excel
 
 parser = argparse.ArgumentParser(description="Compile-test PM_Report_Macro.bas")
 parser.add_argument("--template", default=None)
@@ -51,40 +53,10 @@ watch_proc = subprocess.Popen(
     creationflags=subprocess.CREATE_NO_WINDOW,
 )
 log(f"Dialog watcher started (pid {watch_proc.pid}).")
-time.sleep(4)
-
-excel = win32com.client.DispatchEx("Excel.Application")
-excel.Visible = False
-excel.DisplayAlerts = False
-excel.AutomationSecurity = 1
-
-import psutil
-before_pids = {p.pid for p in psutil.process_iter(["name"]) if p.info["name"] and p.info["name"].lower() == "excel.exe"}
 time.sleep(1)
-after_pids = {p.pid for p in psutil.process_iter(["name"]) if p.info["name"] and p.info["name"].lower() == "excel.exe"}
-new_pids = after_pids - before_pids
-excel_pid = next(iter(new_pids)) if new_pids else None
-log(f"Excel COM instance pid(s): {','.join(str(p) for p in new_pids) if new_pids else 'attached to existing instance'}")
 
-watchdog_timer = None
-watchdog_fired = False
-
-
-def watchdog():
-    global watchdog_fired
-    time.sleep(10)
-    watchdog_fired = True
-    try:
-        proc = psutil.Process(excel_pid)
-        proc.kill()
-        log(f"Watchdog killed Excel pid {excel_pid}.")
-    except Exception:
-        pass
-
-
-if excel_pid:
-    watchdog_timer = threading.Thread(target=watchdog, daemon=True)
-    watchdog_timer.start()
+excel, excel_pid = start_excel()
+log(f"Excel COM instance pid: {excel_pid}")
 
 log_mark = 0
 if os.path.exists(watch_log):
@@ -94,7 +66,8 @@ if os.path.exists(watch_log):
 run_error = None
 wb = None
 try:
-    wb = excel.Workbooks.Open(test_copy)
+    with ExcelGuard(excel_pid, DEFAULT_TIMEOUT):
+        wb = excel.Workbooks.Open(test_copy)
     vbp = wb.VBProject
     mod = vbp.VBComponents.Add(1)
     mod.Name = "zzCompileProbe"
@@ -108,13 +81,14 @@ try:
     )
     mod.CodeModule.AddFromString(probe_code)
     log("Running Probe (forces full-project compile)...")
-    excel.Run("Probe")
+    with ExcelGuard(excel_pid, DEFAULT_TIMEOUT):
+        excel.Run("Probe")
     log("Run call returned without COM error.")
 except Exception as e:
     run_error = str(e)
     log(f"Run call raised: {run_error}")
 
-time.sleep(2)
+time.sleep(1)
 new_lines = []
 if os.path.exists(watch_log):
     with open(watch_log, "r", encoding="utf-8") as f:
@@ -143,8 +117,6 @@ else:
         pass
     log(f"Full error details written to Logs\\compile-errors.log")
 
-if watchdog_timer and watchdog_timer.is_alive():
-    watchdog_timer.join(timeout=1)
 try:
     if wb:
         wb.Close(False)

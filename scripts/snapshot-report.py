@@ -1,12 +1,11 @@
 # snapshot-report.py
 # Exports sheets of a PM report as PNG images.
 # Usage: python scripts/snapshot-report.py [--path PATH] [--sheets SHEET1,SHEET2] [--out-folder FOLDER]
-
 import argparse
 import os
 import sys
 
-import win32com.client
+from excel_guard import DEFAULT_TIMEOUT, ExcelGuard, start_excel
 
 parser = argparse.ArgumentParser(description="Snapshot PM report sheets as PNG")
 parser.add_argument("--path", default=None)
@@ -43,15 +42,13 @@ for f in os.listdir(out_folder):
     if f.endswith(".png"):
         os.remove(os.path.join(out_folder, f))
 
-excel = win32com.client.DispatchEx("Excel.Application")
-excel.Visible = False
-excel.DisplayAlerts = False
-excel.AutomationSecurity = 1
+excel, excel_pid = start_excel()
 
 wb = None
 exported = 0
 try:
-    wb = excel.Workbooks.Open(path, False, True)
+    with ExcelGuard(excel_pid, DEFAULT_TIMEOUT):
+        wb = excel.Workbooks.Open(path, False, True)
     targets = []
     if args.sheets:
         names = [s.strip() for s in args.sheets.split(",")]
@@ -69,25 +66,29 @@ try:
         excel.ActiveWindow.Zoom = 100
         rng.CopyPicture(1, 2)  # xlScreen=1, xlBitmap=2
 
-        import time
-        time.sleep(0.25)
         safe = ws.Name.replace(" ", "-").lower()
         png_path = os.path.join(out_folder, f"report-{safe}.png")
         chart = wb.Charts.Add()
         try:
             chart.Paste()
-            time.sleep(0.25)
             if os.path.exists(png_path):
                 os.remove(png_path)
-            chart.Export(png_path)
+            with ExcelGuard(excel_pid, DEFAULT_TIMEOUT):
+                chart.Export(png_path)
             print(f"Exported: {png_path}")
             exported += 1
         finally:
             chart.Delete()
 finally:
     if wb:
-        wb.Close(False)
-    excel.Quit()
+        try:
+            wb.Close(False)
+        except Exception:
+            pass
+    try:
+        excel.Quit()
+    except Exception:
+        pass
 
 if exported == 0:
     sys.exit(3)
