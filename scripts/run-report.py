@@ -10,9 +10,8 @@ import sys
 from datetime import datetime
 
 import psutil
-import win32com.client
 
-from excel_guard import DEFAULT_TIMEOUT, ExcelGuard, log_hang, start_excel
+from excel_guard import DEFAULT_TIMEOUT, DialogWatcher, ExcelGuard, log_hang, start_excel
 
 parser = argparse.ArgumentParser(description="Run the PM report end-to-end via RunReport")
 parser.add_argument("--template", default=None)
@@ -52,39 +51,40 @@ if not os.path.exists(source):
 log(f"=== run-report started (template={template})")
 log(f"source={source}  output={out_folder}  prior={prior or '(auto)'}")
 
-excel, excel_pid = start_excel()
+with DialogWatcher() as dw:
+    excel, excel_pid = start_excel()
 
-wb = None
-result = None
-try:
-    with ExcelGuard(excel_pid, DEFAULT_TIMEOUT):
-        wb = excel.Workbooks.Open(template)
-
-    with ExcelGuard(excel_pid, DEFAULT_TIMEOUT):
-        result = excel.Run("RunReport", source, out_folder, prior)
-
-    log(f"RunReport returned: {result}")
-
-    ok = isinstance(result, str) and result.startswith("OK|")
-    log(f"RESULT={'OK' if ok else 'FAILED'}|{result if result else '(no result)'}")
-    sys.exit(0 if ok else 1)
-except Exception as e:
-    result = str(e)
-    log(f"RunReport raised: {result}")
-    sys.exit(1)
-finally:
-    if wb:
-        try:
-            wb.Close(False)
-        except Exception as e:
-            log(f"Close failed: {e}")
+    wb = None
+    result = None
     try:
-        excel.Quit()
+        with ExcelGuard(excel_pid, DEFAULT_TIMEOUT):
+            wb = excel.Workbooks.Open(template)
+
+        with ExcelGuard(excel_pid, DEFAULT_TIMEOUT):
+            result = excel.Run("RunReport", source, out_folder, prior)
+
+        log(f"RunReport returned: {result}")
+
+        ok = isinstance(result, str) and result.startswith("OK|")
+        log(f"RESULT={'OK' if ok else 'FAILED'}|{result if result else '(no result)'}")
+        sys.exit(0 if ok else 1)
     except Exception as e:
-        log(f"Quit failed: {e}")
-    if excel_pid:
+        result = str(e)
+        log(f"RunReport raised: {result}")
+        sys.exit(1)
+    finally:
+        if wb:
+            try:
+                wb.Close(False)
+            except Exception as e:
+                log(f"Close failed: {e}")
         try:
-            psutil.Process(excel_pid).kill()
-            log(f"Killed lingering Excel pid {excel_pid}.")
-        except Exception:
-            pass
+            excel.Quit()
+        except Exception as e:
+            log(f"Quit failed: {e}")
+        if excel_pid:
+            try:
+                psutil.Process(excel_pid).kill()
+                log(f"Killed lingering Excel pid {excel_pid}.")
+            except Exception:
+                pass

@@ -1,9 +1,10 @@
 # excel_guard.py
 # Shared helper: run blocking Excel COM calls with a hard timeout so nothing
-# ever waits minutes for a stuck macro. Any operation that exceeds
-# DEFAULT_TIMEOUT seconds kills the Excel process and logs the hang to
-# Logs\excel-hangs.log.
+# ever waits minutes for a stuck macro. Also runs a dialog watcher alongside
+# every Excel session so modal popups (OK clicks, errors, file pickers) are
+# captured with their full text and reported instead of silently hanging.
 import os
+import subprocess
 import sys
 import threading
 import time
@@ -16,6 +17,8 @@ project_root = os.path.dirname(script_dir)
 log_dir = os.path.join(project_root, "Logs")
 os.makedirs(log_dir, exist_ok=True)
 hang_log = os.path.join(log_dir, "excel-hangs.log")
+watch_log = os.path.join(log_dir, "watcher.log")
+watcher_script = os.path.join(script_dir, "watch-compile-error.py")
 
 DEFAULT_TIMEOUT = 15  # seconds - nothing waits longer than this
 
@@ -24,6 +27,13 @@ def log_hang(msg):
     line = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | {msg}"
     print(line, file=sys.stderr)
     with open(hang_log, "a", encoding="utf-8") as f:
+        f.write(line + "\n")
+
+
+def log_dialog(msg):
+    line = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | {msg}"
+    print(line)
+    with open(watch_log, "a", encoding="utf-8") as f:
         f.write(line + "\n")
 
 
@@ -100,3 +110,81 @@ class ExcelGuard:
         if exc_type is not None:
             log_hang(f"Excel operation raised: {exc}")
         return False  # don't suppress exceptions
+
+
+class DialogWatcher:
+    """Starts watch-compile-error.py as a background process that watches for
+    Excel modal dialogs and logs their full text. On exit, terminates the
+    watcher and returns any new dialog entries captured since start.
+
+    Usage:
+        with DialogWatcher() as dw:
+            excel, pid = start_excel()
+            with ExcelGuard(pid):
+                excel.Run("SomeMacro")
+        for d in dw.dialogs:
+            print("Dialog during run:", d)
+    """
+
+    def __init__(self):
+        self.proc = None
+        self.start_lines = 0
+
+    def __enter__(self):
+        # Count existing lines so we only report new dialogs.
+        if os.path.exists(watch_log):
+            with open(watch_log, "r", encoding="utf-8") as f:
+                self.start_lines = sum(1 for _ in f)
+        else:
+            self.start_lines = 0
+        # Launch watcher with stdout captured so we can read its output.
+        self.proc = subprocess.Popen(
+            [sys.executable, watcher_script],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
+        )
+        return self
+
+    def _read_new_dialogs(self):
+        """Return new watcher.log lines captured since start."""
+        if not os.path.exists(watch_log):
+            return []
+        with open(watch_log, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        return [l.rstrip("\n") for l in lines[self.start_lines:]]
+
+    def __exit__(self, exc_type, exc, tb):
+        dialogs = []
+        if self.proc:
+            try:
+                self.proc.terminate()
+                self.proc.wait(timeout=3)
+            except Exception:
+                try:
+                    self.proc.kill()
+                except Exception:
+                    pass
+            # Drain any stdout the watcher produced.
+            try:
+                out, _ = self.proc.communicate(timeout=3)
+                if out:
+                    for line in out.splitlines():
+                        if line.strip():
+                            dialogs.append(line.strip())
+            except Exception:
+                pass
+        # Also read watcher.log for any dialogs logged during the session.
+        dialogs.extend(self._read_new_dialogs())
+        # Deduplicate while preserving order.
+        seen = set()
+        unique = []
+        for d in dialogs:
+            if d not in seen:
+                seen.add(d)
+                unique.append(d)
+        self.dialogs = unique
+        for d in unique:
+            log_dialog(f"DIALOG DURING SESSION: {d}")
+        return False

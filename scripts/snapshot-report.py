@@ -5,7 +5,7 @@ import argparse
 import os
 import sys
 
-from excel_guard import DEFAULT_TIMEOUT, ExcelGuard, start_excel
+from excel_guard import DEFAULT_TIMEOUT, DialogWatcher, ExcelGuard, start_excel
 
 parser = argparse.ArgumentParser(description="Snapshot PM report sheets as PNG")
 parser.add_argument("--path", default=None)
@@ -42,53 +42,54 @@ for f in os.listdir(out_folder):
     if f.endswith(".png"):
         os.remove(os.path.join(out_folder, f))
 
-excel, excel_pid = start_excel()
+with DialogWatcher() as dw:
+    excel, excel_pid = start_excel()
 
-wb = None
-exported = 0
-try:
-    with ExcelGuard(excel_pid, DEFAULT_TIMEOUT):
-        wb = excel.Workbooks.Open(path, False, True)
-    targets = []
-    if args.sheets:
-        names = [s.strip() for s in args.sheets.split(",")]
-        for name in names:
-            for ws in wb.Worksheets:
-                if ws.Name == name:
-                    targets.append(ws)
-    else:
-        targets = list(wb.Worksheets)
+    wb = None
+    exported = 0
+    try:
+        with ExcelGuard(excel_pid, DEFAULT_TIMEOUT):
+            wb = excel.Workbooks.Open(path, False, True)
+        targets = []
+        if args.sheets:
+            names = [s.strip() for s in args.sheets.split(",")]
+            for name in names:
+                for ws in wb.Worksheets:
+                    if ws.Name == name:
+                        targets.append(ws)
+        else:
+            targets = list(wb.Worksheets)
 
-    for ws in targets:
-        used = ws.UsedRange
-        rng = ws.Range(ws.Cells(1, 1), ws.Cells(used.Row + used.Rows.Count - 1, used.Column + used.Columns.Count - 1))
-        ws.Activate()
-        excel.ActiveWindow.Zoom = 100
-        rng.CopyPicture(1, 2)  # xlScreen=1, xlBitmap=2
+        for ws in targets:
+            used = ws.UsedRange
+            rng = ws.Range(ws.Cells(1, 1), ws.Cells(used.Row + used.Rows.Count - 1, used.Column + used.Columns.Count - 1))
+            ws.Activate()
+            excel.ActiveWindow.Zoom = 100
+            rng.CopyPicture(1, 2)  # xlScreen=1, xlBitmap=2
 
-        safe = ws.Name.replace(" ", "-").lower()
-        png_path = os.path.join(out_folder, f"report-{safe}.png")
-        chart = wb.Charts.Add()
+            safe = ws.Name.replace(" ", "-").lower()
+            png_path = os.path.join(out_folder, f"report-{safe}.png")
+            chart = wb.Charts.Add()
+            try:
+                chart.Paste()
+                if os.path.exists(png_path):
+                    os.remove(png_path)
+                with ExcelGuard(excel_pid, DEFAULT_TIMEOUT):
+                    chart.Export(png_path)
+                print(f"Exported: {png_path}")
+                exported += 1
+            finally:
+                chart.Delete()
+    finally:
+        if wb:
+            try:
+                wb.Close(False)
+            except Exception:
+                pass
         try:
-            chart.Paste()
-            if os.path.exists(png_path):
-                os.remove(png_path)
-            with ExcelGuard(excel_pid, DEFAULT_TIMEOUT):
-                chart.Export(png_path)
-            print(f"Exported: {png_path}")
-            exported += 1
-        finally:
-            chart.Delete()
-finally:
-    if wb:
-        try:
-            wb.Close(False)
+            excel.Quit()
         except Exception:
             pass
-    try:
-        excel.Quit()
-    except Exception:
-        pass
 
 if exported == 0:
     sys.exit(3)
