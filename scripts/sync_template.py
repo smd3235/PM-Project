@@ -32,6 +32,8 @@ if not os.path.exists(bas):
 excel = win32com.client.DispatchEx("Excel.Application")
 try:
     excel.Visible = False
+    excel.DisplayAlerts = False
+    excel.AutomationSecurity = 1
 except Exception:
     pass
 
@@ -105,55 +107,59 @@ try:
     wb.Save()
     wb.Close(True)
     print(f"Synced template: {template}")
+
+    if args.package:
+        no_macro_path = os.path.join(project_root, "PM_Requests_Master_Template_(No Macros).xlsx")
+        instructions_path = os.path.join(project_root, "BUILD-INSTRUCTIONS.txt")
+        zip_path = os.path.join(project_root, "Project-Local-Build.zip")
+
+        # Reuse the single Excel instance (a second DispatchEx hangs headless).
+        excel.AutomationSecurity = 1
+        wb2 = None
+        try:
+            wb2 = excel.Workbooks.Open(template)
+            try:
+                vbp2 = wb2.VBProject
+                for c in list(vbp2.VBComponents):
+                    vbp2.VBComponents.Remove(c)
+            except Exception:
+                pass
+            if os.path.exists(no_macro_path):
+                os.remove(no_macro_path)
+            try:
+                wb2.SaveAs(no_macro_path, FileFormat=51)
+                wb2.Close(False)
+                wb2 = None
+                print(f"Created macro-free base: {no_macro_path}")
+            except Exception as e:
+                print(f"Macro-free creation skipped: {e}")
+                if wb2:
+                    try:
+                        wb2.Close(False)
+                    except Exception:
+                        pass
+                    wb2 = None
+        finally:
+            if wb2:
+                try:
+                    wb2.Close(False)
+                except Exception:
+                    pass
+
+        module_files = [os.path.join(bas_dir, b) for b in module_basenames]
+        zip_items = [no_macro_path] + module_files
+        if os.path.exists(instructions_path):
+            zip_items.append(instructions_path)
+        with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            for item in zip_items:
+                zf.write(item, arcname=os.path.basename(item))
+        print(f"Built local build package: {zip_path}")
+
 finally:
     try:
         excel.Quit()
     except Exception:
         pass
-
-if args.package:
-    no_macro_path = os.path.join(project_root, "PM_Requests_Master_Template_(No Macros).xlsx")
-    instructions_path = os.path.join(project_root, "BUILD-INSTRUCTIONS.txt")
-    zip_path = os.path.join(project_root, "Project-Local-Build.zip")
-
-    excel2 = win32com.client.DispatchEx("Excel.Application")
-    try:
-        excel2.Visible = False
-    except Exception:
-            pass
-    excel2.AutomationSecurity = 1
-    try:
-        wb2 = excel2.Workbooks.Open(template)
-        # Remove VBA project
-        try:
-            vbp2 = wb2.VBProject
-            for c in list(vbp2.VBComponents):
-                vbp2.VBComponents.Remove(c)
-        except Exception:
-            pass
-        if os.path.exists(no_macro_path):
-            os.remove(no_macro_path)
-        try:
-            wb2.SaveAs(no_macro_path, FileFormat=51)
-            wb2.Close(False)
-            print(f"Created macro-free base: {no_macro_path}")
-        except Exception as e:
-            print(f"Macro-free creation skipped: {e}")
-            wb2.Close(False)
-    finally:
-        try:
-            excel2.Quit()
-        except Exception:
-            pass
-
-    module_files = [os.path.join(bas_dir, b) for b in module_basenames]
-    zip_items = [no_macro_path] + module_files
-    if os.path.exists(instructions_path):
-        zip_items.append(instructions_path)
-    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        for item in zip_items:
-            zf.write(item, arcname=os.path.basename(item))
-    print(f"Built local build package: {zip_path}")
 
 # Auto-update docs, screenshots, and push to git
 try:
