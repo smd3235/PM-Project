@@ -1326,7 +1326,7 @@ Private Function GetOrCreateSettingsSheet(wb As Workbook) As Worksheet
         Set ws = wb.Worksheets.Add(After:=wb.Worksheets(wb.Worksheets.Count))
         ws.Name = SETTINGS_SHEET
         ws.Range("A1").Value = "Setting"
-        ws.Range("B1").Value = "Value"
+        ws.Range("D7").Value = "Value"
         ws.Range("A2").Value = SETTING_OUTPUT_FOLDER
     End If
     ws.Visible = xlSheetVisible
@@ -3176,9 +3176,9 @@ Private Function GetCCEmails() As String
         ws.Name = "EmailSettings"
         ws.Visible = xlSheetVisible
         ws.Range("A1").Value = "CC Emails (comma-separated):"
-        ws.Range("B1").Value = ""
+        ws.Range("D7").Value = ""
     End If
-    GetCCEmails = CStr(ws.Range("B1").Value)
+    GetCCEmails = CStr(ws.Range("D7").Value)
     Exit Function
 LocalFail:
     LogErr "GetCCEmails"
@@ -3209,11 +3209,36 @@ Private Function GetToEmails() As String
     On Error GoTo LocalFail
     Dim ws As Worksheet
     Set ws = ThisWorkbook.Sheets("EmailSettings")
-    GetToEmails = CStr(ws.Range("B3").Value)
+    GetToEmails = CStr(ws.Range("D5").Value)
     Exit Function
 LocalFail:
     LogErr "GetToEmails"
     GetToEmails = ""
+End Function
+
+Private Function GetEmailSubject() As String
+    On Error GoTo LocalFail
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets("EmailSettings")
+    Dim subj As String
+    subj = CStr(ws.Range("D9").Value)
+    If Len(subj) = 0 Then subj = "PM Requests - {{DATE}}"
+    GetEmailSubject = subj
+    Exit Function
+LocalFail:
+    LogErr "GetEmailSubject"
+    GetEmailSubject = "PM Requests - {{DATE}}"
+End Function
+
+Private Function GetEmailBody() As String
+    On Error GoTo LocalFail
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets("EmailSettings")
+    GetEmailBody = CStr(ws.Range("D11").Value)
+    Exit Function
+LocalFail:
+    LogErr "GetEmailBody"
+    GetEmailBody = ""
 End Function
 
 
@@ -3238,11 +3263,19 @@ Public Sub GenerateManagerEmail()
     Dim cellVal As String
 
     subjectDate = Format(Date, "mm/dd/yyyy")
+    Dim emailSubject As String
+    Dim emailBody As String
+    emailSubject = GetEmailSubject()
+    emailBody = GetEmailBody()
+    emailSubject = Replace(emailSubject, "{{DATE}}", subjectDate)
 
     ' Read HTML template from EmailTemplate sheet
     Dim wsTemplate As Worksheet
     Set wsTemplate = ThisWorkbook.Sheets("EmailTemplate")
-    templateHtml = CStr(wsTemplate.Range("A1").Value)
+    templateHtml = emailBody
+    ' Convert plain text body to HTML, replacing {{REPORT}} with data table
+    templateHtml = Replace(templateHtml, vbCrLf, "<br>")
+    templateHtml = Replace(templateHtml, "{{REPORT}}", "{{REPORT_PLACEHOLDER}}")
 
     ' Read CC emails
     Dim wsSettings As Worksheet
@@ -3274,17 +3307,18 @@ Public Sub GenerateManagerEmail()
     dataHtml = dataHtml & "</table>"
 
     ' Replace placeholder with data table
-    htmlBody = templateHtml
-    htmlBody = Replace(htmlBody, "[ ENTER COPIED EXCEL DATA HERE ]", dataHtml)
-    htmlBody = Replace(htmlBody, "[ENTER COPIED EXCEL DATA HERE]", dataHtml)
-    htmlBody = Replace(htmlBody, "[ ENTER COPIED EXCEL DATA HERE]", dataHtml)
+    htmlBody = "<html><body style=""font-family:Calibri,sans-serif;font-size:11pt"">" & htmlBody & "</body></html>"
+    htmlBody = Replace(htmlBody, "{{REPORT_PLACEHOLDER}}", dataHtml)
+    htmlBody = Replace(htmlBody, "{{REPORT}}", dataHtml)
+    htmlBody = Replace(htmlBody, "{{REPORT_PLACEHOLDER}}", dataHtml)
+    htmlBody = Replace(htmlBody, "{{REPORT}}", dataHtml)
 
     ' Create email
     Set olApp = CreateObject("Outlook.Application")
     Set olMail = olApp.CreateItem(0)
 
     With olMail
-        .Subject = "PM Requests - " & subjectDate
+        .Subject = emailSubject
         If Len(ccEmails) > 0 Then .CC = ccEmails
         '' Add image reference at bottom if image exists
         If Len(imagePath) > 0 Then
