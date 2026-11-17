@@ -5,23 +5,49 @@ import argparse
 import os
 import subprocess
 import sys
+import time
+from datetime import datetime
+
+from excel_guard import log_pipeline
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(script_dir)
+
+pipeline_log = os.path.join(project_root, "Logs", "pipeline.log")
+
+
+def log_step(label, status, duration_ms=None):
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    dur = f" ({duration_ms}ms)" if duration_ms is not None else ""
+    line = f"{ts} | STEP {label}: {status}{dur}"
+    print(line)
+    with open(pipeline_log, "a", encoding="utf-8") as f:
+        f.write(line + "\n")
 
 
 def run(cmd, label, timeout=60000):
     print(f"=== {label} ===")
     print(" ".join(cmd))
-    p = subprocess.run(cmd, cwd=project_root, capture_output=True, text=True, timeout=timeout)
-    if p.stdout:
-        print(p.stdout)
-    if p.stderr:
-        print(p.stderr, file=sys.stderr)
-    if p.returncode != 0:
-        print(f"FAILED: {label} (exit {p.returncode})", file=sys.stderr)
-        sys.exit(p.returncode)
-    print(f"OK: {label}")
+    start = time.time()
+    log_step(label, "STARTED")
+    try:
+        p = subprocess.run(cmd, cwd=project_root, capture_output=True, text=True, timeout=timeout)
+        elapsed_ms = int((time.time() - start) * 1000)
+        if p.stdout:
+            print(p.stdout)
+        if p.stderr:
+            print(p.stderr, file=sys.stderr)
+        if p.returncode != 0:
+            log_step(label, "FAILED", elapsed_ms)
+            print(f"FAILED: {label} (exit {p.returncode})", file=sys.stderr)
+            sys.exit(p.returncode)
+        log_step(label, "OK", elapsed_ms)
+        print(f"OK: {label}")
+    except subprocess.TimeoutExpired:
+        elapsed_ms = int((time.time() - start) * 1000)
+        log_step(label, "TIMEOUT", elapsed_ms)
+        print(f"FAILED: {label} timed out after {timeout}ms", file=sys.stderr)
+        sys.exit(1)
 
 
 def main():
@@ -30,6 +56,8 @@ def main():
     args = parser.parse_args()
 
     python = sys.executable
+
+    log_pipeline("=== PIPELINE START ===")
 
     # 1. Compile gate
     run([python, os.path.join(script_dir, "test-compile.py")], "test-compile (compile gate)", timeout=60000)
@@ -49,7 +77,7 @@ def main():
         docs_cmd.append("--push")
     run(docs_cmd, "update-docs (README photos + commit" + (" + push" if not args.skip_push else "") + ")", timeout=120000)
 
-    print("PIPELINE COMPLETE")
+    log_pipeline("=== PIPELINE COMPLETE ===")
 
 
 if __name__ == "__main__":

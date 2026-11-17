@@ -9,7 +9,7 @@ import subprocess
 import sys
 import zipfile
 
-from excel_guard import DEFAULT_TIMEOUT, DialogWatcher, ExcelGuard, start_excel
+from excel_guard import DEFAULT_TIMEOUT, DialogWatcher, ExcelGuard, log_pipeline, start_excel
 
 parser = argparse.ArgumentParser(description="Sync VBA macro into PM template")
 parser.add_argument("--template", default=None)
@@ -29,6 +29,8 @@ if not os.path.exists(template):
 if not os.path.exists(bas):
     print(f"Bas not found: {bas}", file=sys.stderr)
     sys.exit(1)
+
+log_pipeline("sync_template STARTED")
 
 with DialogWatcher() as dw:
     excel, excel_pid = start_excel()
@@ -161,6 +163,8 @@ with DialogWatcher() as dw:
             excel.Quit()
         except Exception:
             pass
+
+log_pipeline("sync_template COMPLETED")
 
 # Auto-update docs, screenshots, and push to git
 try:

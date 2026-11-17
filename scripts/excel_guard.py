@@ -18,9 +18,18 @@ log_dir = os.path.join(project_root, "Logs")
 os.makedirs(log_dir, exist_ok=True)
 hang_log = os.path.join(log_dir, "excel-hangs.log")
 watch_log = os.path.join(log_dir, "watcher.log")
+pipeline_log = os.path.join(log_dir, "pipeline.log")
 watcher_script = os.path.join(script_dir, "watch-compile-error.py")
 
 DEFAULT_TIMEOUT = 15  # seconds - nothing waits longer than this
+
+
+def log_pipeline(msg):
+    """Write a timestamped line to Logs\pipeline.log."""
+    line = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | {msg}"
+    print(line)
+    with open(pipeline_log, "a", encoding="utf-8") as f:
+        f.write(line + "\n")
 
 
 def log_hang(msg):
@@ -70,6 +79,8 @@ def start_excel():
             pid = next(iter(new))
             break
         time.sleep(0.1)
+    if pid:
+        log_pipeline(f"Excel session started pid={pid}")
     return excel, pid
 
 
@@ -109,6 +120,8 @@ class ExcelGuard:
             self.timer.cancel()
         if exc_type is not None:
             log_hang(f"Excel operation raised: {exc}")
+        else:
+            log_pipeline(f"Excel call completed pid={self.pid}")
         return False  # don't suppress exceptions
 
 
@@ -145,6 +158,7 @@ class DialogWatcher:
             text=True,
             creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
         )
+        log_pipeline("Dialog watcher started")
         return self
 
     def _read_new_dialogs(self):
@@ -194,4 +208,5 @@ class DialogWatcher:
         self.dialogs = unique
         for d in unique:
             log_dialog(f"DIALOG DURING SESSION: {d}")
+        log_pipeline(f"Dialog watcher stopped ({len(unique)} dialog(s) captured)")
         return False

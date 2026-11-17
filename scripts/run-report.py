@@ -11,7 +11,7 @@ from datetime import datetime
 
 import psutil
 
-from excel_guard import DEFAULT_TIMEOUT, DialogWatcher, ExcelGuard, log_hang, start_excel
+from excel_guard import DEFAULT_TIMEOUT, DialogWatcher, ExcelGuard, log_hang, log_pipeline, start_excel
 
 parser = argparse.ArgumentParser(description="Run the PM report end-to-end via RunReport")
 parser.add_argument("--template", default=None)
@@ -50,6 +50,7 @@ if not os.path.exists(source):
 
 log(f"=== run-report started (template={template})")
 log(f"source={source}  output={out_folder}  prior={prior or '(auto)'}")
+log_pipeline("run-report STARTED")
 
 with DialogWatcher() as dw:
     excel, excel_pid = start_excel()
@@ -88,3 +89,4 @@ with DialogWatcher() as dw:
                 log(f"Killed lingering Excel pid {excel_pid}.")
             except Exception:
                 pass
+        log_pipeline("run-report COMPLETED")
