@@ -61,7 +61,7 @@ ButtonFail:
 End Sub
 
 
-' Public entry point for sync_template.ps1: rebuild START HERE + button so the
+' Public entry point for sync_template.py: rebuild START HERE + button so the
 ' shipped workbook matches the current module without a full report run.
 
 Public Sub SetupEmailButtons(Optional ByVal Silent As Boolean = False)
@@ -388,7 +388,7 @@ End Sub
 
 ' ====================== CORE (host-neutral) ======================
 ' Owns the whole build. Nothing here touches a dialog or a MsgBox: RunReport is
-' callable from the button, from build-worker.ps1, or from a test.
+' callable from the button, from build-worker.py, or from a test.
 '
 ' Pipeline, in order (each step is a `stage` breadcrumb in the run log):
 '   fastmode -> source open -> raw load -> data read -> classified ->
@@ -397,7 +397,7 @@ End Sub
 '
 ' Contracts:
 '   * Result string is the only output: "OK|savePath|pmTotal|skipped|prior"
-'     or "ERROR|number|description @ stage". scripts\run-report.ps1 parses it;
+'     or "ERROR|number|description @ stage". scripts\run-report.py parses it;
 '     the regression build must be 124 PMs and 0 skipped.
 '   * A row is a PM request when Assigned Sales Manager is non-empty. Blank
 '     manager = skipped and counted, never fatal (CStr(Null) raises error 94).

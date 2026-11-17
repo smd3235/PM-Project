@@ -34,7 +34,7 @@ another project can adopt the same patterns.
 | **Errors logged to file** | `LogErr` writes `timestamp | ERR | procedure | #Err.Number | Err.Description | line Erl` to both a global debug log and the current per-run log. |
 | **No modal dialogs in automation** | Error handlers log instead of `MsgBox` (user-facing buttons are the exception, not the rule). |
 | **Realtime breadcrumbs** | Stage labels (`stage = "dashboard": LogStage "dashboard"`) plus per-item progress lines (`manager tab 9/12: Derek Owens (10 rows)`). |
-| **Whole-project compile gate** | VBA compiles one procedure at a time; `test-compile.ps1` triggers real `Debug > Compile VBAProject` so uncalled procedures with typos are caught. |
+| **Whole-project compile gate** | VBA compiles one procedure at a time; `test-compile.py` triggers real `Debug > Compile VBAProject` so uncalled procedures with typos are caught. |
 | **Persistent compile-error record** | Failed gates write to `Logs\compile-errors.log` with module, line, token, and line text. |
 
 ---
@@ -301,11 +301,11 @@ All zeros means clean data; anything above zero is a data-quality issue to revie
 
 Excel's compile-on-demand means **running a procedure does not compile its neighbours**. A typo in a procedure nobody calls survives every `Application.Run`. Compile errors surface as modal dialogs, never as exceptions — so a headless harness sees a hang, not a message.
 
-### `scripts\test-compile.ps1`
+### `scripts\test-compile.py`
 
 The gate:
 1. Copies the master `.xlsm` to `Logs\_compile_test.xlsm` (master never touched).
-2. Starts a dialog watcher (`watch-compile-error.ps1`) that records and dismisses every modal dialog to `Logs\watcher.log`.
+2. Starts a dialog watcher (`watch-compile-error.py`) that records and dismisses every modal dialog to `Logs\watcher.log`.
 3. Imports your `.bas` into the copy (tests the source, not the embedded module).
 4. Triggers real **Debug > Compile VBAProject** (VBE command bar, Debug menu, control id `578`).
 5. Polls the watcher log for compile-error dialog text.
@@ -332,7 +332,7 @@ if ($compileError) {
 
 ### Self-test mode
 
-`test-compile.ps1 -SelfTest` injects a deliberately broken procedure, asserts the gate **fails**, verifies the fixture is really in the module, removes it, and asserts the gate passes — proving the detector actually detects.
+`test-compile.py -SelfTest` injects a deliberately broken procedure, asserts the gate **fails**, verifies the fixture is really in the module, removes it, and asserts the gate passes — proving the detector actually detects.
 
 ---
 
@@ -452,9 +452,9 @@ End Sub
 - [ ] Add `stage = "name": LogStage "name"` at major transitions.
 - [ ] Add `LogLine` per-item progress inside long loops (per-sheet, per-manager, per-row batch).
 - [ ] Add audit counters for data-quality issues that matter to your domain.
-- [ ] Copy `scripts\test-compile.ps1` and adapt `$Bas`, `$ModuleName`, `$CompileCommandId`.
+- [ ] Copy `scripts\test-compile.py` and adapt `$Bas`, `$ModuleName`, `$CompileCommandId`.
 - [ ] Add the `compile-errors.log` write block to the gate's failure branch.
-- [ ] Run `test-compile.ps1 -SelfTest` to prove the detector detects.
+- [ ] Run `test-compile.py -SelfTest` to prove the detector detects.
 - [ ] Run your build end-to-end and verify no unexpected `ERR` lines appear.
 
 ---

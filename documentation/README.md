@@ -9,12 +9,12 @@ This folder holds the rest of the documentation:
 |---|---|
 | [AGENTS.md](AGENTS.md) | The rule set for anyone (human or agent) changing this project. |
 | [CHANGELOG.md](CHANGELOG.md) | Version history, newest first, with timestamps. |
-| `screenshots/` | PNG exports of `START HERE`, the Dashboard, and a manager tab, produced by `scripts\snapshot-report.ps1`. |
+| `screenshots/` | PNG exports of `START HERE`, the Dashboard, and a manager tab, produced by `scripts\snapshot-report.py`. |
 | `aoti-logo.png`, `aoti-logo-2023.svg` | Logo art used by the report Dashboard. |
 
 Regenerate the screenshots after a layout change:
 
 ```powershell
-.\scripts\snapshot-report.ps1 -Path "PM_Requests_Master_Template.xlsm" -Sheets "START HERE" -Prefix master
-.\scripts\snapshot-report.ps1 -Path "Reports\PM Requests 2026-11-13 (11).xlsx" -Sheets "Dashboard","Alice Fontaine" -Prefix report
+.\scripts\snapshot-report.py -Path "PM_Requests_Master_Template.xlsm" -Sheets "START HERE" -Prefix master
+.\scripts\snapshot-report.py -Path "Reports\PM Requests 2026-11-13 (11).xlsx" -Sheets "Dashboard","Alice Fontaine" -Prefix report
 ```

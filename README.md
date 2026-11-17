@@ -227,7 +227,7 @@ Errors are logged as `!!! ERROR <number>: <description>   [stage: ...]`.
 ### The 10-second watchdog
 
 ```powershell
-.\scripts\run-report.ps1
+.\scripts\run-report.py
 ```
 
 Starts a headless build, follows the log, and enforces a stall limit: **no new log line for
@@ -266,16 +266,16 @@ day.
 
 | Script | Purpose |
 |---|---|
-| `sync_template.ps1` | Imports the `.bas` into the master's VBA project and rebuilds `START HERE`. Run after every `.bas` change. Takes one backup first. |
-| `test-compile.ps1` | Compile gate: imports the `.bas` into a copy of the master, triggers **Debug > Compile VBAProject** (compiles *every* procedure), then runs an execution probe. `-SelfTest` proves the detector detects. |
-| `run-report.ps1` | Headless end-to-end build with the stall watchdog described above. |
-| `build-worker.ps1` | The headless worker `run-report.ps1` starts (one Excel instance, one `RunReport` call). |
-| `watch-compile-error.ps1` | Stands outside Excel, records and dismisses every modal dialog into `Logs\watcher.log`. |
-| `answer-dialogs.ps1` | Answers the real UI path's dialogs (source picker, output folder, final `MsgBox`) so the button can be exercised unattended. |
-| `audit-peer.ps1` | Read-only cross audit against the sibling project (see below). |
-| `snapshot-report.ps1` | Exports sheets as PNG images (these screenshots) for docs and design comparison. |
-| `dump-sheet.ps1` | Read-only structural dump of one sheet (merges, widths, heights, fonts, fills, shapes) for verifying layouts. |
-| `check-toc.ps1` | Verifies the MAP block at the top of `PM_Report_Macro.bas` (section start lines and procedure names) against the file. `-Fix` rewrites it. |
+| `sync_template.py` | Imports the `.bas` into the master's VBA project and rebuilds `START HERE`. Run after every `.bas` change. Takes one backup first. |
+| `test-compile.py` | Compile gate: imports the `.bas` into a copy of the master, triggers **Debug > Compile VBAProject** (compiles *every* procedure), then runs an execution probe. `-SelfTest` proves the detector detects. |
+| `run-report.py` | Headless end-to-end build with the stall watchdog described above. |
+| `build-worker.py` | The headless worker `run-report.py` starts (one Excel instance, one `RunReport` call). |
+| `watch-compile-error.py` | Stands outside Excel, records and dismisses every modal dialog into `Logs\watcher.log`. |
+| `answer-dialogs.py` | Answers the real UI path's dialogs (source picker, output folder, final `MsgBox`) so the button can be exercised unattended. |
+| `audit-peer.py` | Read-only cross audit against the sibling project (see below). |
+| `snapshot-report.py` | Exports sheets as PNG images (these screenshots) for docs and design comparison. |
+| `dump-sheet.py` | Read-only structural dump of one sheet (merges, widths, heights, fonts, fills, shapes) for verifying layouts. |
+| `check-toc.py` | Verifies the MAP block at the top of `PM_Report_Macro.bas` (section start lines and procedure names) against the file. `-Fix` rewrites it. |
 | `make_fake_data.py` | Regenerates the synthetic export. |
 | `make_prior.py` | Builds a prior-week report for comparison tests. |
 
@@ -306,9 +306,9 @@ the file names, headers, and UI text - change those to rebrand.
 Any change to `PM_Report_Macro.bas` goes through this loop, in this order:
 
 ```powershell
-.\scripts\test-compile.ps1     # 1. whole-project compile gate (seconds)
-.\scripts\sync_template.ps1    # 2. import into the master, rebuild START HERE
-.\scripts\run-report.ps1       # 3. end-to-end build against the fake export
+.\scripts\test-compile.py     # 1. whole-project compile gate (seconds)
+.\scripts\sync_template.py    # 2. import into the master, rebuild START HERE
+.\scripts\run-report.py       # 3. end-to-end build against the fake export
 ```
 
 Expected result of step 3:
@@ -331,7 +331,7 @@ typo in a procedure nobody calls survives every `Application.Run`. Compile error
 modal dialogs (`0x800A03E8` / `0x800706BE`), never as exceptions, so a headless harness sees
 a hang rather than a message.
 
-`test-compile.ps1` therefore triggers the real **Debug > Compile VBAProject** command (VBE
+`test-compile.py` therefore triggers the real **Debug > Compile VBAProject** command (VBE
 command bar, Debug menu, control id 578), which compiles every procedure in every module.
 A pass requires three things, not one:
 
@@ -340,7 +340,7 @@ A pass requires three things, not one:
 2. no error dialog appeared, and
 3. the execution probe ran and wrote its marker.
 
-`watch-compile-error.ps1` runs alongside, polling every 100 ms, and writes each dialog's
+`watch-compile-error.py` runs alongside, polling every 100 ms, and writes each dialog's
 full text to `Logs\watcher.log` before dismissing it. `-SelfTest` injects a deliberately
 broken procedure, asserts the gate **fails**, verifies the fixture really is in the module,
 removes it, and asserts the gate passes - because a fixture that was never saved once
@@ -352,10 +352,10 @@ produced a false pass here.
 
 | Check | Command | Expected |
 |---|---|---|
-| Whole-project compile | `.\scripts\test-compile.ps1` | `RESULT: COMPILE OK` |
-| Detector self-test | `.\scripts\test-compile.ps1 -SelfTest` | `SELFTEST: injected error detected as expected` |
-| End-to-end build | `.\scripts\run-report.ps1` | `RESULT=OK\|...\|124\|0\|<prior>` |
-| Visual regression | `.\scripts\snapshot-report.ps1` | PNGs in `documentation\screenshots\` |
+| Whole-project compile | `.\scripts\test-compile.py` | `RESULT: COMPILE OK` |
+| Detector self-test | `.\scripts\test-compile.py -SelfTest` | `SELFTEST: injected error detected as expected` |
+| End-to-end build | `.\scripts\run-report.py` | `RESULT=OK\|...\|124\|0\|<prior>` |
+| Visual regression | `.\scripts\snapshot-report.py` | PNGs in `documentation\screenshots\` |
 
 The fixture is `AOTIOpsTreatmentPMDatesResults_FAKE.xlsx`: 124 rows, 12 managers, all 124
 counted as PMs. Build once, then `python scripts\make_prior.py` writes last week's report, and
@@ -375,9 +375,9 @@ the two:
 - PowerShell/Python function names and Markdown section headings.
 
 ```powershell
-.\scripts\audit-peer.ps1                              # all sections
-.\scripts\audit-peer.ps1 -Sections scripts,commands   # narrow it
-.\scripts\audit-peer.ps1 -Report documentation\cross-audit.md
+.\scripts\audit-peer.py                              # all sections
+.\scripts\audit-peer.py -Sections scripts,commands   # narrow it
+.\scripts\audit-peer.py -Report documentation\cross-audit.md
 ```
 
 The peer is auto-discovered (a sibling directory with a root `*.bas` and a `scripts\`

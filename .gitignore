@@ -6,7 +6,7 @@ Reports/*
 Logs/*
 !Logs/.gitkeep
 
-# Master workbook backups from scripts\sync_template.ps1
+# Master workbook backups from scripts\sync_template.py
 backups/
 
 # Excel temp/lock files

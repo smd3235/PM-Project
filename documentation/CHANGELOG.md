@@ -90,17 +90,17 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
     `OK|savePath|managerPms|skipped|noManager`; it is now
     `OK|savePath|pmTotal|skipped|priorFileName` (and
     `ERROR|number|description @ stage`), which is what `RunReport` returns and
-    what `scripts\run-report.ps1` parses.
+    what `scripts\run-report.py` parses.
   - Two small code-hygiene fixes found while documenting: `if fd.Show` becomes
     `If fd.Show`, and the `stage = "manager tabs"` line was at column 0.
-- New `scripts\check-toc.ps1`: read-only check of the MAP against the file
+- New `scripts\check-toc.py`: read-only check of the MAP against the file
   (`TOC OK: 10 sections, 66 procedures, line numbers match`), `-Fix` rewrites it
   and re-checks until the numbers settle. It parses the block as text, so it
   needs no Excel and cannot touch the workbook. Verified both ways: it reports
   drift for a deliberately wrong line number and passes on the real file.
 
 ### 2026-11-14 00:56:00
-- Added `scripts\dump-sheet.ps1`: read-only structural dump of one sheet (merged
+- Added `scripts\dump-sheet.py`: read-only structural dump of one sheet (merged
   areas, column widths, row heights, per-cell font/fill/alignment, shape geometry),
   which is how a layout change gets verified without opening the workbook by hand.
   It lived outside the repo during the START HERE work; it now belongs to the project
@@ -122,7 +122,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
 
 ### 2026-11-14 00:50:00
 - Nothing in the project points outside the project folder any more.
-  - `scripts\sync_template.ps1` saved the master through `%TEMP%` before swapping it in; it
+  - `scripts\sync_template.py` saved the master through `%TEMP%` before swapping it in; it
     now saves to `Logs\_sync_<stamp>.xlsm` and deletes it after the swap. (A leftover
     `%TEMP%` copy of the master from an older run was removed.)
   - `scripts\make_fake_data.py` had the output path hardcoded to this project's folder
@@ -174,7 +174,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
   - Dashboard footnote no longer explains an untracked status; the START HERE bullet about
     skipped rows became a bullet about never overwriting a dated report.
   - Log field `pending=`, the `pending skipped` stage label, and the result-string token
-    are unchanged: they are the contract `scripts\run-report.ps1` and `/logs` document, and
+    are unchanged: they are the contract `scripts\run-report.py` and `/logs` document, and
     old logs use them.
 - README: the "What happens to Pending Pickup rows" section is gone. What remains is one
   data rule under Source file requirements (a row is a PM request when it has a manager and
@@ -189,7 +189,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
   mandatory loop, the compile gate, testing, the cross-project audit, troubleshooting).
   `documentation/README.md` is now a short pointer to it, so there is still one source of
   truth. AGENTS.md section 6/7 updated to say so.
-- Added `scripts\snapshot-report.ps1`: exports any sheet as a PNG (copy as picture ->
+- Added `scripts\snapshot-report.py`: exports any sheet as a PNG (copy as picture ->
   throwaway chart -> `Chart.Export`), which captures fills, fonts, merges and shapes the
   way Excel renders them. Defaults to the newest report in `Reports\`, `-List` prints the
   sheet inventory.
@@ -226,7 +226,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
 
 ### 2026-11-13 23:45:00
 - Cross-project audit added, read-only, in both directions:
-  - `scripts\audit-peer.ps1` compares this project with the sibling
+  - `scripts\audit-peer.py` compares this project with the sibling
     `Pending Pickup Project`: files only one side has, files that differ (with
     per-file line counts and the functions/sections each side adds), VBA procedure
     names (shared vs peer-only), PowerShell/Python functions, and Markdown section
@@ -269,7 +269,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
     their place (`make_fake_data.py` regenerates the fake export,
     `make_prior.py` builds a prior-week report for comparison tests); the rest of
     that folder was one-off investigation scratch whose functionality now lives in
-    `test-compile.ps1` and `watch-compile-error.ps1`.
+    `test-compile.py` and `watch-compile-error.py`.
   - Logo path: `AddDashboardLogo` now resolves `documentation\aoti-logo.png`
     first, then falls back to the workbook root, so the art moves with the docs
     without breaking older folders.
@@ -280,9 +280,9 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
   fails with "Not a legal object name"), so the file is `PM_Report_Macro.bas` -
   matching `Pending_Pickup_Macro.bas` in the sibling project. A spaced file name
   was tried first and rejected: it only ever causes quoting bugs (the worker
-  launch in `run-report.ps1` failed on `-File 'C:\...\PM Report Macro.bas'` until
+  launch in `run-report.py` failed on `-File 'C:\...\PM Report Macro.bas'` until
   the path was quoted). The button's `OnAction` still points at `BuildManagerTabs`,
-  so nothing in the UI changes. `sync_template.ps1` removes the legacy
+  so nothing in the UI changes. `sync_template.py` removes the legacy
   `CreateManagerTabs` component on its next run so no stale copy survives.
 - Run logging: every build writes `Logs\PM_Report_yyyyMMdd_hhmmss.log` next to the
   master workbook. Every line is `yyyy-MM-dd hh:mm:ss  +<ms since previous line>ms  message`,
@@ -293,29 +293,29 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
 - New `/logs` slash command (`.kilo/command/logs.md`): prints the run logs
   oldest-first so the newest run is the last block, plus the slowest steps across
   the newest five logs.
-- New `run-report.ps1` watchdog: builds one report headlessly and, if no new log
+- New `run-report.py` watchdog: builds one report headlessly and, if no new log
   line appears for 10 seconds (or no log file at all), kills Excel and the worker,
-  prints the last 40 log lines with the slowest step, and exits `2`. `build-worker.ps1`
+  prints the last 40 log lines with the slowest step, and exits `2`. `build-worker.py`
   is its headless worker.
 - All PowerShell tooling moved into `scripts/` (`sync_template`, `run-report`,
   `build-worker`, plus the three below), following the sibling Pending Pickup
   project's layout. Each script resolves the project root from `$PSScriptRoot`.
 - Ported from the Pending Pickup project, adapted to this one:
-  - `scripts\test-compile.ps1` - compile gate that copies the master, starts the
+  - `scripts\test-compile.py` - compile gate that copies the master, starts the
     dialog watcher, appends a probe *inside* `PM_Report_Macro` (VBA compiles one
     procedure at a time, so a probe in its own module would prove nothing) and
     runs it. Verdict lands in `Logs\compile-test.log`.
-  - `scripts\watch-compile-error.ps1` - stands outside Excel, logs every modal
+  - `scripts\watch-compile-error.py` - stands outside Excel, logs every modal
     dialog to `Logs\watcher.log` with a timestamp, dismisses error dialogs, and
     kills the Excel process if one will not close. This replaces the manual
     "read the highlighted token from the VBE" procedure that found the
     `MANAGER_LAST_COL` bug.
-  - `scripts\answer-dialogs.ps1` - answers the real UI path's dialogs (source
+  - `scripts\answer-dialogs.py` - answers the real UI path's dialogs (source
     picker, output folder, final MsgBox) so `BuildManagerTabs` can run unattended.
 - New `AGENTS.md` at the project root: rules for agents - sync, compile-test, run,
   `/logs`, the 10-second kill rule, module naming, log line format, file layout.
   Sibling project keeps the same file, so the two projects now behave alike.
-- `test-compile.ps1` upgraded from a call-graph probe to a **real whole-project
+- `test-compile.py` upgraded from a call-graph probe to a **real whole-project
   compile**. VBA compiles one procedure at a time (compile-on-demand), so a probe
   only proves its own call graph: a negative test - a `BadProc` with an undefined
   name, never called - still reported OK. The gate now triggers
@@ -339,7 +339,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
   comparison, "Completed" and "Prior PMs Still Open" are 0 instead of the full
   PM total (they are derived from prior minus retained, which is meaningless at
   prior = 0).
-- XLIDE is no longer needed: the module is synced with `sync_template.ps1`, a
+- XLIDE is no longer needed: the module is synced with `sync_template.py`, a
   plain PowerShell + Excel COM script (remove + import via `VBProject`,
   rebuild `START HERE`, save). It needs "Trust access to the VBA project object
   model" once, nothing else.
