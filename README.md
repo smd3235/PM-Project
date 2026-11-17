@@ -4,7 +4,7 @@ One click turns the weekly treatment export into a finished, formatted **PM Requ
 workbook: a KPI **Dashboard**, one tab per **Sales Manager**, and the **Raw Data** - with
 the prior week's report compared automatically.
 
-![START HERE](documentation/screenshots/master-start-here.png)
+![START HERE](documentation/screenshots/template-start-here.png)
 
 **Version 1.4** | Excel + VBA (desktop) | Windows and macOS | No add-ins, no install
 
@@ -129,7 +129,15 @@ right, and a footnote names the source file and the prior file.
 
 ## Manager tabs
 
-![Manager tab](documentation/screenshots/report-alice-fontaine.png)
+![Manager tab](documentation/screenshots/sample-manager-tab.png)
+
+### Email Templates
+
+**Manager Email Template** and **Director Email Template** are hidden tabs that control the email body, subject, TO/CC, and image. Edit them via the Manager Template and Director Template buttons on START HERE.
+
+![Manager Email Template](documentation/screenshots/template-manager-email-template.png)
+
+![Director Email Template](documentation/screenshots/template-director-email-template.png)
 
 Every manager tab has the same anatomy, so a reader always knows where to look:
 
@@ -414,7 +422,3 @@ change is logged there with a `YYYY-MM-DD HH:mm:ss` timestamp.
 [documentation/AGENTS.md](documentation/AGENTS.md) is the canonical rule set: the one true
 VBA source, the mandatory compile/sync/run loop, Excel handling rules, the logging format,
 the file layout, and version control.
-
-## Sample Manager Tab
-
-![Sample Manager Tab](documentation/screenshots/sample-manager-tab.png)
