@@ -223,6 +223,9 @@ Public Sub SetupEmailButtons(Optional ByVal Silent As Boolean = False)
     On Error Resume Next
     ws.Shapes("BtnManagerTemplate").Delete
     ws.Shapes("BtnDirectorTemplate").Delete
+    ws.Shapes("BtnEditEmailTemplate").Delete
+    ws.Shapes("BtnEditToEmails").Delete
+    ws.Shapes("BtnEditCCEmails").Delete
     On Error GoTo ButtonFail
 
     btnWidth = 170
