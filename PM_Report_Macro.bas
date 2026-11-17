@@ -230,8 +230,8 @@ Public Sub SetupEmailButtons(Optional ByVal Silent As Boolean = False)
 
     btnWidth = 160
     btnHeight = 30
-    btnLeft = ws.Range("C20").Left + 4
-    btnTop = ws.Range("B20").Top + (ws.Rows(20).Height - btnHeight) / 2
+    btnLeft = ws.Range("C23").Left + 4
+    btnTop = ws.Range("B24").Top + (ws.Rows(24).Height - btnHeight) / 2
 
     Set shp = ws.Shapes.AddShape(5, btnLeft, btnTop, btnWidth, btnHeight)
     shp.Name = "BtnManagerTemplate"
@@ -301,8 +301,8 @@ Public Sub SetupGenerateEmailButton(Optional ByVal Silent As Boolean = False)
 
     btnWidth = 160
     btnHeight = 30
-    btnLeft = ws.Range("C20").Left + 4
-    btnTop = ws.Range("B21").Top + (ws.Rows(21).Height - btnHeight) / 2
+    btnLeft = ws.Range("C23").Left + 4 + 160 + 8 + 160 + 8
+    btnTop = ws.Range("B24").Top + (ws.Rows(24).Height - btnHeight) / 2
 
     Set shp = ws.Shapes.AddShape(5, btnLeft, btnTop, btnWidth, btnHeight)
     shp.Name = "BtnGenerateEmail"
@@ -1156,8 +1156,13 @@ Private Function GetOrCreateStartSheet() As Worksheet
     ws.Rows(15).RowHeight = 12
     ws.Rows(16).RowHeight = 24
     ws.Rows("17:19").RowHeight = 20
-    ws.Rows(20).RowHeight = 24
-    ws.Rows(21).RowHeight = 36
+    ws.Rows(20).RowHeight = 12
+    ws.Rows(21).RowHeight = 18
+    ws.Rows(22).RowHeight = 12
+    ws.Rows(23).RowHeight = 24
+    ws.Rows(24).RowHeight = 36
+    ws.Rows(25).RowHeight = 12
+    ws.Rows(26).RowHeight = 18
 
     ' Two-tone rule under the title: navy across the title, gold to the right edge.
     ws.Range("B4:D4").Interior.Color = RGB(31, 78, 121)
@@ -1253,7 +1258,20 @@ Private Function GetOrCreateStartSheet() As Worksheet
         .HorizontalAlignment = xlCenter
     End With
 
-    ws.Range("B2:F21").Font.Name = UI_FONT
+    ' Email templates bar + buttons area.
+    With ws.Range("B23:F23")
+        .Merge
+        .Value = "EMAIL TEMPLATES"
+        .Interior.Color = RGB(70, 130, 180)
+        .Font.Bold = True
+        .Font.Size = 12
+        .Font.Color = RGB(255, 255, 255)
+        .HorizontalAlignment = xlLeft
+        .VerticalAlignment = xlCenter
+    End With
+    ws.Range("B23").IndentLevel = 1
+
+    ws.Range("B2:F26").Font.Name = UI_FONT
 
     ' Logo: keep the embedded START HERE picture, top-right of the title row.
     PositionStartLogo ws
