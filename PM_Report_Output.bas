@@ -947,7 +947,9 @@ Public Sub AddDashboardLogo(ws As Worksheet)
     Application.ScreenUpdating = True
 
     ' Remove any logo already on this dashboard.
+    On Error Resume Next
     ws.Shapes(LOGO_SHAPE).Delete
+    On Error GoTo LocalFail
 
     ' 1) Load from documentation\aoti-logo.png (automation-safe).
     logoPath = ResolveLogoPath()

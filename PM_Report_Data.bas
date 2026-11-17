@@ -414,6 +414,7 @@ Public Function PriorNameOverlap(ByVal priorPath As String, _
     PriorNameOverlap = currentNames.Count - missing
     If PriorNameOverlap < 0 Then PriorNameOverlap = 0
 
+    Exit Function
 Fail:
     LogErr "PriorNameOverlap"
     On Error Resume Next
