@@ -2309,12 +2309,12 @@ Private Sub FormatManagerSheet(ws As Worksheet, ByVal manager As String, _
     ws.Shapes("BtnGenEmail").Delete
     On Error GoTo LocalFail
     Dim btnShp As Shape
-    Set btnShp = ws.Shapes.AddShape(5, ws.Range("K1").Left, ws.Range("A1").Top + 2, 120, 24)
+    Set btnShp = ws.Shapes.AddShape(5, ws.Range("M1").Left, ws.Range("A3").Top + 2, 160, 24)
     btnShp.Name = "BtnGenEmail"
     With btnShp
         .Fill.ForeColor.RGB = RGB(34, 139, 34)
         .Fill.Solid
-        .TextFrame.Characters.Text = "Generate Email"
+        .TextFrame.Characters.Text = "Create Email - " & manager
         .TextFrame.HorizontalAlignment = xlCenter
         .TextFrame.VerticalAlignment = xlCenter
         .TextFrame.Characters.Font.Size = 9
