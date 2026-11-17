@@ -16,5 +16,7 @@ backups/
 # Local scratch
 *.bak
 *.bak_*
+*.pyc
+__pycache__/
 Thumbs.db
 desktop.ini
