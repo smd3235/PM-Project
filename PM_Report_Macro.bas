@@ -2311,6 +2311,8 @@ Private Sub FormatManagerSheet(ws As Worksheet, ByVal manager As String, _
     Dim btnShp As Shape
     Set btnShp = ws.Shapes.AddShape(5, 700, ws.Range("A3").Top + 2, 200, 24)
     btnShp.Name = "BtnGenEmail"
+    btnShp.Width = 200
+    btnShp.Height = 24
     With btnShp
         .Fill.ForeColor.RGB = RGB(34, 139, 34)
         .Fill.Solid
