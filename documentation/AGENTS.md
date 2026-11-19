@@ -113,6 +113,16 @@ manager). Anything else is a bug.
   - Module-level `Public`/`Private` declarations outside the declarations section
   - Array indexing `data(r, col)` without recent `UBound`/`LastUsedRow` bounds check
 
+## 4b. Script language — Python only
+
+- All project tooling under `scripts\` is Python (`.py`). Never write or use
+  PowerShell (`.ps1`) scripts for build, compile, sync, run-report, watcher,
+  audit, or any automation task.
+- If a `.ps1` file exists anywhere in the project, it is obsolete and should be
+  removed or replaced with a `.py` equivalent.
+- All Python scripts resolve paths from `__file__` / `os.path.dirname`, never
+  from hardcoded user profiles.
+
 ## 5. Logging standard
 
 - Every run writes `Logs\PM_Report_yyyyMMdd_hhmmss.log` next to the master
@@ -192,3 +202,12 @@ sections. It finds the sibling by itself; no absolute path is written down.
   2. `PM_Requests_Master_Template_Macro_Archive.zip` — macro-enabled `PM_Requests_Master_Template.xlsm` + `BUILD-INSTRUCTIONS.txt` only (the `.bas` modules are already embedded; no separate `.bas` files).
 - End users receive only the `.xlsm`. The `.bas`, `scripts\`, fake export, and logs are internal.
 - The template must stay self-contained: module imported, logo embedded, button wired to `BuildManagerTabs`.
+
+## 11. Temp file paths
+
+- Never use `C:\Users\smd32\AppData\Local\Temp\kilo` for any temp files, scratch
+  work, or intermediate output. That path is prohibited.
+- All temp/scratch files go under
+  `C:\Users\smd32\Downloads\Re-Auth Project\scripts\temp`. Scripts resolve this
+  path relative to the project root or from `__file__`, never from `%TEMP%`,
+  `AppData`, or a hardcoded user profile outside this project.
