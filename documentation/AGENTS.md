@@ -88,6 +88,31 @@ manager). Anything else is a bug.
 - Guard `CDbl`/`CLng` on cell values with `IsNumeric` or an error handler.
 - Formatting, charts, and file I/O always run under `On Error Resume Next`.
 
+### 4a. Deep VBA inspection audit
+
+- `scripts\audit-vba.py` performs a static deep inspection of all
+  `PM_Report_*.bas` modules. It checks patterns the compile gate cannot catch
+  (compile-on-demand means a typo in an uncalled procedure survives every
+  `Application.Run`).
+- Severity levels: **CRITICAL** (likely runtime bugs), **HIGH** (error-handling
+  gaps), **MEDIUM** (missing stage breadcrumbs), **INFO** (long procedures).
+- Run it before committing any `.bas` change: `python scripts\audit-vba.py`.
+- It is read-only (`--fix` is accepted for compatibility but does nothing).
+- The audit is a candidate list, not a pass/fail gate: review each flag, fix
+  real bugs, and treat style items as candidates for future refactoring.
+- What it checks:
+  - `Err.Raise` without an `On Error GoTo` handler
+  - `CDbl`/`CLng`/`CInt`/`CSng` on cell values without an `IsNumeric` guard
+  - File I/O / workbook access with no error handling
+  - `Fail` label with no `Exit Sub/Function` (falls through on success)
+  - `Fail` label with no `LogErr` call (error swallowed)
+  - `On Error Resume Next` without `On Error GoTo 0` to restore handling
+  - Public procedures that assign `stage` but never call `LogStage`/`SetStatus`
+  - Public procedures over 40 lines with no `LogStage`/`SetStatus`
+  - Procedures over 80 lines (candidate for refactoring)
+  - Module-level `Public`/`Private` declarations outside the declarations section
+  - Array indexing `data(r, col)` without recent `UBound`/`LastUsedRow` bounds check
+
 ## 5. Logging standard
 
 - Every run writes `Logs\PM_Report_yyyyMMdd_hhmmss.log` next to the master
@@ -109,7 +134,7 @@ manager). Anything else is a bug.
 | `Reports/` | Generated reports — build artifacts, never committed. |
 | `Logs/` | Run logs, watcher log, compile-test log. Safe to delete. |
 | `backups/` | At most two master snapshots. Safe to delete. |
-| `scripts/` | All tooling: Python (`sync_template`, `test-compile`, `run-report`, `snapshot-report`, `update-docs`, `check-toc`, `monitor-logs`, `pipeline`, `make_fake_data`, `make_prior`). New test scripts go here. |
+| `scripts/` | All tooling: Python (`sync_template`, `test-compile`, `run-report`, `snapshot-report`, `update-docs`, `check-toc`, `audit-vba`, `monitor-logs`, `pipeline`, `make_fake_data`, `make_prior`). New test scripts go here. |
 | `.kilo/command/logs.md` | The `/logs` slash command. Must stay here: Kilo only discovers commands under `.kilo\command\` (or legacy `.kilocode\`), walking up from the working directory. Moving it to `scripts\` silently removes `/logs` for everyone; `KILO_CONFIG_DIR` could redirect discovery but it is a machine env var, not something a repo can ship. |
 | `.kilo/command/audit.md` | The `/audit` slash command: cross-audits the sibling `Pending Pickup Project` for portable scripts, VBA procedures and rules, and the reverse. Read-only; porting is a separate approved task. The same two files exist in the peer so the audit runs from either side. |
 | `documentation/` | `AGENTS.md` (rules), `CHANGELOG.md`, `README.md` (pointer to the root README), `screenshots/`, the logo art. A stub `AGENTS.md` at the root points here so Kilo still loads the rules. |
