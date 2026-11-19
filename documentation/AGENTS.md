@@ -2,6 +2,8 @@
 
 These rules apply to every change, no exceptions.
 
+---
+
 ## 1. Project overview
 
 This is a weekly sales manager report builder. The macro runs inside Excel
@@ -160,7 +162,8 @@ comparison found). Anything else is a bug.
 | `Reports/` | Generated reports — build artifacts, never committed. |
 | `Logs/` | Run logs, watcher log, compile-test log. Safe to delete. |
 | `backups/` | At most two master snapshots. Safe to delete. |
-| `scripts/` | All tooling: Python (`sync_template`, `test-compile`, `run-report`, `snapshot-report`, `update-docs`, `check-toc`, `audit-vba`, `monitor-logs`, `pipeline`, `make_fake_data`, `make_prior`). New test scripts go here. |
+| `scripts\` | All tooling: Python (`sync_template`, `test-compile`, `run-report`, `snapshot-report`, `update-docs`, `check-toc`, `audit-vba`, `monitor-logs`, `pipeline`, `make_fake_data`, `make_prior`). New test scripts go here. |
+| `scripts\temp\` | Temp/scratch files. Safe to delete. |
 | `documentation/` | `AGENTS.md` (rules), `CHANGELOG.md`, `README.md`, `screenshots/`, logo art. |
 | `.kilo/command/` | Kilo slash-command definitions (discovered by Kilo; do not move). |
 | `README.md` (root) | Canonical GitHub-facing README. |
@@ -168,18 +171,29 @@ comparison found). Anything else is a bug.
 **Hard rule: every file stays inside the project folder.** Scripts resolve paths
 from `__file__` / `os.path.dirname`, never from `%TEMP%`, `AppData`, or a
 hardcoded user profile, and never write scratch files outside the project.
-Scratch belongs in `Logs\` (gitignored); build output in `Reports\`; master
-snapshots in `backups\`.
-
-**Exception (section 13):** temp/scratch files may go to
-`C:\Users\smd32\Downloads\Re-Auth Project\scripts\temp` — that is the only
-out-of-project path permitted.
+Scratch belongs in `Logs\` (gitignored), `scripts\temp\` (gitignored), build
+output in `Reports\`, master snapshots in `backups\`.
 
 ---
 
-## 9. Documentation
+## 9. Temp file paths
 
-- Update `CHANGELOG.md` with every change, newest entry first.
+- **Never** use `C:\Users\smd32\AppData\Local\Temp\kilo` for any temp files,
+  scratch work, or intermediate output. That path is prohibited.
+- All temp/scratch files go under
+  `C:\Users\smd32\Downloads\Re-Auth Project\scripts\temp`. Scripts resolve this
+  path relative to `__file__`, never from `%TEMP%`, `AppData`, or a hardcoded
+  user profile outside this project.
+- All other files stay inside the project folder (see section 8 hard rule).
+
+---
+
+## 10. Documentation
+
+- Update `documentation\CHANGELOG.md` with every change, newest entry first.
+  Entry format: `- **YYYY-MM-DD HH:MM:SS** — what changed and why.`
+  Every entry must include date/time, scope (VBA / Python / docs / deploy), and
+  a one-line rationale.
 - Update `README.md` (root) when paths, scripts, or behaviour change, and
   regenerate `documentation/screenshots/` after any layout change with
   `scripts\snapshot-report.py`.
@@ -188,7 +202,7 @@ out-of-project path permitted.
 
 ---
 
-## 10. Version control
+## 11. Version control
 
 - Always commit and push to git after making changes. If the change is complete
   and verified (compile gate + report build), commit it in the same session; do
@@ -198,13 +212,13 @@ out-of-project path permitted.
 - One commit per logical change; keep the subject short and imperative.
 - Stage only intended files. `git add -A` is acceptable only after `git status`
   confirms nothing unintended (logs, reports, backups) is included.
-- Never commit `Reports\*.xlsx`, `Logs\*.log`, or `backups\*`.
+- Never commit `Reports\*.xlsx`, `Logs\*.log`, `scripts\temp\*`, or `backups\*`.
 - Never commit secrets or keys.
 - After committing, report the commit id and confirm the tree is clean.
 
 ---
 
-## 11. Deployment
+## 12. Deployment
 
 - After every verified change (mandatory loop passed), build **both** zips:
   1. `Project-Local-Build.zip` — non-macro `PM_Requests_Master_Template_(No Macros).xlsx`
@@ -220,24 +234,15 @@ out-of-project path permitted.
 
 ---
 
-## 12. Pipeline (`scripts\pipeline.py`)
+## 13. Pipeline (`scripts\pipeline.py`)
 
 - `scripts\pipeline.py` runs the full mandatory loop (steps 1–5 of section 3) plus
   screenshots and docs, in order, headless, with 15-second timeouts on every Excel
   call. Use it as the single entry point for a verified change:
   `python scripts\pipeline.py` (add `--skip-push` to commit locally without pushing).
 - If any step fails, fix it before committing. Do not push a broken build.
-
----
-
-## 13. Temp file paths
-
-- **Never** use `C:\Users\smd32\AppData\Local\Temp\kilo` for any temp files, scratch
-  work, or intermediate output. That path is prohibited.
-- All temp/scratch files go under
-  `C:\Users\smd32\Downloads\Re-Auth Project\scripts\temp`. Scripts resolve this
-  path relative to `__file__`, never from `%TEMP%`, `AppData`, or a hardcoded
-  user profile outside this project.
+- Run it after every verified `.bas` change, every Python tooling change, and
+  before every git push.
 
 ---
 
@@ -352,17 +357,7 @@ out-of-project path permitted.
 
 ---
 
-## 23. Pipeline run trigger
-
-- Run `python scripts\pipeline.py` after every verified `.bas` change, every
-  Python tooling change, and before every git push.
-- Run it manually before starting work if you're unsure whether the tree is
-  clean (to confirm the last committed state builds).
-- Do not push without a successful pipeline run in the same session.
-
----
-
-## 24. Stray Excel cleanup procedure
+## 23. Stray Excel cleanup procedure
 
 - Before starting any Excel automation, check `Get-Process excel` and kill any
   stray `EXCEL` processes.
@@ -374,7 +369,7 @@ out-of-project path permitted.
 
 ---
 
-## 25. README dual maintenance
+## 24. README dual maintenance
 
 - `README.md` (root) is the canonical, GitHub-facing project README.
 - `documentation\README.md` is a pointer to the root README; it contains only a
