@@ -171,10 +171,6 @@ hardcoded user profile, and never write scratch files outside the project.
 Scratch belongs in `Logs\` (gitignored); build output in `Reports\`; master
 snapshots in `backups\`.
 
-**Exception (section 12):** temp/scratch files may go to
-`C:\Users\smd32\Downloads\Re-Auth Project\scripts\temp` — that is the only
-out-of-project path permitted.
-
 ---
 
 ## 9. Documentation
@@ -234,11 +230,10 @@ out-of-project path permitted.
 
 - **Never** use `C:\Users\smd32\AppData\Local\Temp\kilo` for any temp files, scratch
   work, or intermediate output. That path is prohibited.
-- All temp/scratch files go under
-  `C:\Users\smd32\Downloads\Re-Auth Project\scripts\temp`. Scripts resolve this
-  path relative to the project root or from `__file__`, never from `%TEMP%`,
+- All temp/scratch files go under `scripts\temp` inside the project root.
+  Scripts resolve this path relative to `__file__`, never from `%TEMP%`,
   `AppData`, or a hardcoded user profile outside this project.
-- This is the only out-of-project path permitted (see section 8 exception).
+- All files stay inside the project folder (see section 8).
 
 ---
 
