@@ -239,3 +239,147 @@ out-of-project path permitted.
   path relative to the project root or from `__file__`, never from `%TEMP%`,
   `AppData`, or a hardcoded user profile outside this project.
 - This is the only out-of-project path permitted (see section 8 exception).
+
+---
+
+## 14. CHANGELOG format
+
+- Update `documentation\CHANGELOG.md` with every change, newest entry first.
+- Entry format: `- **YYYY-MM-DD HH:MM:SS** — what changed and why.`
+- Every entry must include: date/time, scope (VBA / Python / docs / deploy), and
+  a one-line rationale. Example:
+
+  ```
+  - **2026-11-19 18:30:00** — VBA: added LogErr to AddDashboardLogo Fail handler.
+    Reason: shape delete on first run swallowed error #-2147024809.
+  ```
+
+- Never omit the rationale. A change without "why" is not reviewable.
+
+---
+
+## 15. Root AGENTS.md stub sync
+
+- The root `AGENTS.md` (16 lines) is a stub that points to
+  `documentation\AGENTS.md`. Kilo loads rules from the root stub.
+- **All rule edits go in `documentation\AGENTS.md` only.** Never edit the root
+  stub's rule text.
+- If you add, remove, or renumber a section in `documentation\AGENTS.md`, update
+  the root stub's cross-references to match.
+- The root stub's short version (the 6-bullet summary) must stay consistent with
+  the full rules; update both together.
+
+---
+
+## 16. Branching strategy
+
+- All work happens on `main`. No feature branches unless explicitly approved.
+- If a branch is needed, name it `feature/<short-description>` (lowercase,
+  hyphens, no spaces).
+- Delete feature branches after merging. Never leave stale branches.
+
+---
+
+## 17. Fixture / test data management
+
+- `AOTIOpsTreatmentPMDatesResults_FAKE.xlsx` is synthetic test data, never real
+  customer data. It is committed to git.
+- Regenerate it only when the export schema changes (new headers, new columns,
+  new row types). Use `scripts\make_fake_data.py`.
+- When regenerating, bump the version comment inside the file and note it in
+  `CHANGELOG.md`.
+- Never hand-edit the fake export; regenerate it instead.
+
+---
+
+## 18. Screenshot naming and regeneration
+
+- Screenshots live in `documentation\screenshots\`.
+- Naming convention: `template-<sheet-name>.png` for template sheets,
+  `report-<sheet-name>.png` for report sheets (sheet name lowercased, spaces
+  replaced with `-`).
+- Regenerate screenshots whenever the template layout, report layout, or any
+  sheet geometry changes: `python scripts\snapshot-report.py`.
+- After regenerating, commit the changed PNGs with the code change that
+  motivated them.
+
+---
+
+## 19. check-toc.py vs audit-vba.py — which to run when
+
+- `scripts\check-toc.py` — verifies module split integrity: `Option Explicit`,
+  matching `VB_Name`, unique procedure names across modules. Run **after any
+  structural change** (moving code between modules, adding/removing a procedure,
+  changing a module filename).
+- `scripts\audit-vba.py` — deep static inspection: error handling, `LogErr`,
+  `IsNumeric` guards, stage breadcrumbs, long procedures. Run **before committing
+  any `.bas` change**.
+- Run both after any `.bas` edit; `check-toc.py` catches split drift,
+  `audit-vba.py` catches runtime-risk patterns.
+
+---
+
+## 20. Log rotation and cleanup
+
+- `Logs\` is safe to delete at any time; it contains only generated run logs.
+- Keep the most recent 20 `PM_Report_*.log` files; older ones may be removed.
+- `compile-test.log`, `watcher.log`, `excel-hangs.log`, `pipeline.log`, and
+  `compile-errors.log` are append-only; truncate them manually when they grow
+  beyond a few thousand lines.
+- Never commit `.log` files.
+
+---
+
+## 21. Backup rotation
+
+- `backups\` holds at most two master workbook snapshots.
+- Create a new backup before any `.bas` change that touches `RunReport` or
+  `BuildManagerTabs`.
+- When creating a third snapshot, delete the oldest one. Never exceed two.
+- Name backups `PM_Requests_Master_Template_<YYYYMMDD>_<HHMM>.xlsm`.
+
+---
+
+## 22. Rollback after a failed sync
+
+- If `sync_template.py` fails mid-import (VBA import error, `.xlsm` corruption,
+  Excel hang), restore `PM_Requests_Master_Template.xlsm` from the most recent
+  snapshot in `backups\`.
+- If no snapshot exists, recreate the `.xlsm` from the non-macro deploy zip
+  (`Project-Local-Build.zip`) by importing all six `.bas` modules via
+  `sync_template.py`, then re-run the mandatory loop.
+- After any rollback, re-run `test-compile.py` to confirm the restored state
+  compiles cleanly before attempting further changes.
+
+---
+
+## 23. Pipeline run trigger
+
+- Run `python scripts\pipeline.py` after every verified `.bas` change, every
+  Python tooling change, and before every git push.
+- Run it manually before starting work if you're unsure whether the tree is
+  clean (to confirm the last committed state builds).
+- Do not push without a successful pipeline run in the same session.
+
+---
+
+## 24. Stray Excel cleanup procedure
+
+- Before starting any Excel automation, check `Get-Process excel` and kill any
+  stray `EXCEL` processes.
+- If Excel is hung from a previous failed run (modal dialog not dismissed), kill
+  the process — do not try to dismiss dialogs interactively.
+- After any script ends (success or failure), verify `Get-Process excel` returns
+  nothing. If it does, kill it.
+- Never leave Excel running overnight or across sessions.
+
+---
+
+## 25. README dual maintenance
+
+- `README.md` (root) is the canonical, GitHub-facing project README.
+- `documentation\README.md` is a pointer to the root README; it contains only a
+  one-line link and no independent content.
+- When paths, scripts, or behavior change, update root `README.md` first, then
+  regenerate screenshots if layout changed.
+- Never edit `documentation\README.md` content beyond the link line.
