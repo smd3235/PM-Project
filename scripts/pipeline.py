@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """pipeline.py
 Full reliable pipeline: compile gate -> lint -> typecheck -> security scan ->
-pyupgrade -> autoformat -> complexity -> deadcode -> deps ->
-sync modules -> run report -> screenshots -> docs -> git push.
+pyupgrade -> autoformat -> complexity -> deadcode -> deps -> db_query ->
+export_report -> sync modules -> run report -> screenshots -> png_optimize ->
+md_format -> docs -> git push.
 Headless throughout; no modal dialogs.
 """
 
@@ -89,31 +90,30 @@ def main():
     run([python, os.path.join(script_dir, "deadcode.py")], "deadcode (vulture)", timeout=60000)
 
     # 9. Unused dependency detection with deptry
-    run([python, os.path.join(script_dir, "deps.py"),
-         "--ignore-numpy", "--ignore-pandas", "--ignore-ruff", "--ignore-mypy",
-         "--ignore-pyupgrade", "--ignore-bandit", "--ignore-pip-audit",
-         "--ignore-safety", "--ignore-pytest", "--ignore-pytest-asyncio",
-         "--ignore-pytest-cov", "--ignore-pytest-timeout", "--ignore-pytest-xdist",
-         "--ignore-hypothesis", "--ignore-watchdog", "--ignore-tenacity",
-         "--ignore-structlog", "--ignore-rich", "--ignore-python-dotenv",
-         "--ignore-pil"], "deps (deptry)", timeout=60000)
+    run([python, os.path.join(script_dir, "deps.py")], "deps (deptry)", timeout=60000)
 
-    # 10. Sync modules into xlsm + build non-macro zip
+    # 10. Database query with pyodbc
+    run([python, os.path.join(script_dir, "db_query.py")], "db_query (ODBC query)", timeout=120000)
+
+    # 11. Export report data with pandas
+    run([python, os.path.join(script_dir, "export_report.py")], "export-report (pandas export)", timeout=60000)
+
+    # 12. Sync modules into xlsm + build non-macro zip
     run([python, os.path.join(script_dir, "sync_template.py"), "--package"], "sync_template (sync modules + zip)", timeout=120000)
 
-    # 11. End-to-end report build
+    # 13. End-to-end report build
     run([python, os.path.join(script_dir, "run-report.py")], "run-report (end-to-end build)", timeout=60000)
 
-    # 12. Regenerate screenshots
+    # 14. Regenerate screenshots
     run([python, os.path.join(script_dir, "snapshot-report.py")], "snapshot-report (screenshots)", timeout=60000)
 
-    # 13. Optimize PNG images
+    # 15. Optimize PNG images
     run([python, os.path.join(script_dir, "png_optimize.py")], "png_optimize (Pillow)", timeout=60000)
 
-    # 14. Format Markdown files
+    # 16. Format Markdown files
     run([python, os.path.join(script_dir, "md_format.py")], "md_format (mdformat)", timeout=60000)
 
-    # 15. Update docs + README photos + commit
+    # 17. Update docs + README photos + commit
     docs_cmd = [python, os.path.join(script_dir, "update-docs.py")]
     if not args.skip_push:
         docs_cmd.append("--push")

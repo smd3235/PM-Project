@@ -165,7 +165,7 @@ ______________________________________________________________________
 | `Reports/`                                                                                                        | Generated reports — build artifacts, never committed.                                                                                                                                                                                                                                                                           |
 | `Logs/`                                                                                                           | Run logs, watcher log, compile-test log. Safe to delete.                                                                                                                                                                                                                                                                        |
 | `backups/`                                                                                                        | At most two master snapshots. Safe to delete.                                                                                                                                                                                                                                                                                   |
-| `scripts\`                                                                                                        | All tooling: Python (`sync_template`, `test-compile`, `run-report`, `snapshot-report`, `update-docs`, `check-toc`, `audit-vba`, `lint`, `typecheck`, `security-scan`, `pyupgrade_check`, `autoformat`, `complexity`, `deadcode`, `deps`, `monitor-logs`, `pipeline`, `make_fake_data`, `make_prior`). New test scripts go here. |
+| `scripts\`                                                                                                        | All tooling: Python (`sync_template`, `test-compile`, `run-report`, `snapshot-report`, `update-docs`, `check-toc`, `audit-vba`, `lint`, `typecheck`, `security-scan`, `pyupgrade_check`, `autoformat`, `complexity`, `deadcode`, `deps`, `db_query`, `export_report`, `db_query`, `md_format`, `png_optimize`, `pytest_run`, `monitor-logs`, `pipeline`, `make_fake_data`, `make_prior`). New test scripts go here. |
 | `scripts\temp\`                                                                                                   | Temp/scratch files. Safe to delete.                                                                                                                                                                                                                                                                                             |
 | `documentation/`                                                                                                  | `AGENTS.md` (rules), `CHANGELOG.md`, `README.md`, `screenshots/`, logo art.                                                                                                                                                                                                                                                     |
 | `.kilo/command/`                                                                                                  | Kilo slash-command definitions (discovered by Kilo; do not move).                                                                                                                                                                                                                                                               |
@@ -239,24 +239,28 @@ ______________________________________________________________________
 
 ## 13. Pipeline (`scripts\pipeline.py`)
 
-- `scripts\pipeline.py` runs the full mandatory loop (steps 1–13 of section 3) plus
+- `scripts\pipeline.py` runs the full mandatory loop (steps 1–17 of section 3) plus
   screenshots and docs, in order, headless, with 15-second timeouts on every Excel
   call. Use it as the single entry point for a verified change:
   `python scripts\pipeline.py` (add `--skip-push` to commit locally without pushing).
 - Pipeline steps:
   1. test-compile (compile gate)
-  1. lint (ruff)
-  1. typecheck (mypy)
-  1. security-scan (bandit + pip-audit)
-  1. pyupgrade_check (syntax modernization)
-  1. autoformat (autoflake)
-  1. complexity (radon)
-  1. deadcode (vulture)
-  1. deps (deptry)
-  1. sync_template (sync modules + zip)
-  1. run-report (end-to-end build)
-  1. snapshot-report (screenshots)
-  1. update-docs (README photos + commit + push)
+  2. lint (ruff)
+  3. typecheck (mypy)
+  4. security-scan (bandit + pip-audit)
+  5. pyupgrade_check (syntax modernization)
+  6. autoformat (autoflake)
+  7. complexity (radon)
+  8. deadcode (vulture)
+  9. deps (deptry)
+  10. db_query (ODBC database query)
+  11. export_report (pandas export)
+  12. sync_template (sync modules + zip)
+  13. run-report (end-to-end build)
+  14. snapshot-report (screenshots)
+  15. png_optimize (Pillow)
+  16. md_format (mdformat)
+  17. update-docs (README photos + commit + push)
 - If any step fails, fix it before committing. Do not push a broken build.
 - Run it after every verified `.bas` change, every Python tooling change, and
   before every git push.
