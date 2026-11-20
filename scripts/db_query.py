@@ -7,7 +7,6 @@ Usage: python scripts/db_query.py --dsn <DSN_NAME> --query <SQL_QUERY> [--output
 
 import argparse
 import os
-import subprocess
 import sys
 from datetime import datetime
 
@@ -27,14 +26,18 @@ def log(msg):
 
 def main():
     parser = argparse.ArgumentParser(description="ODBC database query tool")
-    parser.add_argument("--dsn", required=True, help="ODBC DSN name to connect to")
-    parser.add_argument("--query", required=True, help="SQL query to execute")
+    parser.add_argument("--dsn", default=None, help="ODBC DSN name to connect to")
+    parser.add_argument("--query", default=None, help="SQL query to execute")
     parser.add_argument("--output", default=None, help="Output CSV file path (default: Logs/query_results.csv)")
     parser.add_argument("--uid", default=None, help="Database username")
     parser.add_argument("--pwd", default=None, help="Database password")
     args = parser.parse_args()
 
     log("=== ODBC Database Query started ===")
+
+    if not args.dsn or not args.query:
+        log("INFO: No --dsn or --query provided. Skipping database query.")
+        sys.exit(0)
 
     try:
         import pyodbc

@@ -7,7 +7,6 @@ Usage: python scripts/export_report.py [--report <REPORT_FILE>] [--format csv|js
 
 import argparse
 import os
-import subprocess
 import sys
 from datetime import datetime
 

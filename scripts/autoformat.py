@@ -47,7 +47,9 @@ def main():
         for f in files:
             if f.endswith(".py"):
                 cmd.append(os.path.join(root, f))
-    if not args.fix:
+    if args.fix:
+        cmd.append("--in-place")
+    else:
         cmd.append("--check")
 
     print(f"Running: {' '.join(cmd)}")
