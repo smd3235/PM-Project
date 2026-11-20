@@ -106,12 +106,12 @@ for bas in bas_files:
             conv_line_no = start + proc_text[: m.start()].count("\n")
             conv_line = lines[conv_line_no - 1]
             # Only flag if the conversion argument looks like a cell value access
-            args = m.group(0)
-            if re.search(cell_value_re, args) or re.search(cell_value_re, conv_line):
+            match_text = m.group(0)
+            if re.search(cell_value_re, match_text) or re.search(cell_value_re, conv_line):
                 same_line = bool(isnumeric_re.search(conv_line))
                 prev_line = conv_line_no > 1 and bool(isnumeric_re.search(lines[conv_line_no - 2]))
                 if not same_line and not prev_line:
-                    func_name = args.split("(")[0].split()[-1]
+                    func_name = match_text.split("(")[0].split()[-1]
                     problems.append(("CRITICAL", f"{bas}:{conv_line_no} {func_name}() on cell value without IsNumeric guard -- type mismatch risk"))
 
         # CRITICAL: no error handling on procedures that do file I/O / workbook access
@@ -185,7 +185,7 @@ for bas in bas_files:
 
 print(f"Audit: {checked} module(s) scanned")
 if problems:
-    by_sev = {"CRITICAL": [], "HIGH": [], "MEDIUM": [], "INFO": []}
+    by_sev: dict[str, list] = {"CRITICAL": [], "HIGH": [], "MEDIUM": [], "INFO": []}
     for sev, p in problems:
         by_sev[sev].append(p)
 

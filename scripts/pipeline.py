@@ -1,6 +1,10 @@
-# pipeline.py
-# Full reliable pipeline: compile gate -> sync modules -> run report ->
-# screenshots -> docs -> git push. Headless throughout; no modal dialogs.
+#!/usr/bin/env python3
+"""pipeline.py
+Full reliable pipeline: compile gate -> lint -> typecheck -> security scan ->
+sync modules -> run report -> screenshots -> docs -> git push.
+Headless throughout; no modal dialogs.
+"""
+
 import argparse
 import os
 import subprocess
@@ -62,16 +66,25 @@ def main():
     # 1. Compile gate
     run([python, os.path.join(script_dir, "test-compile.py")], "test-compile (compile gate)", timeout=60000)
 
-    # 2. Sync modules into xlsm + build non-macro zip
+    # 2. Lint Python code with ruff
+    run([python, os.path.join(script_dir, "lint.py")], "lint (ruff)", timeout=60000)
+
+    # 3. Type-check Python code with mypy
+    run([python, os.path.join(script_dir, "typecheck.py")], "typecheck (mypy)", timeout=60000)
+
+    # 4. Security scan with bandit + pip-audit
+    run([python, os.path.join(script_dir, "security-scan.py")], "security-scan (bandit + pip-audit)", timeout=120000)
+
+    # 5. Sync modules into xlsm + build non-macro zip
     run([python, os.path.join(script_dir, "sync_template.py"), "--package"], "sync_template (sync modules + zip)", timeout=120000)
 
-    # 3. End-to-end report build
+    # 6. End-to-end report build
     run([python, os.path.join(script_dir, "run-report.py")], "run-report (end-to-end build)", timeout=60000)
 
-    # 4. Regenerate screenshots
+    # 7. Regenerate screenshots
     run([python, os.path.join(script_dir, "snapshot-report.py")], "snapshot-report (screenshots)", timeout=60000)
 
-    # 5. Update docs + README photos + commit
+    # 8. Update docs + README photos + commit
     docs_cmd = [python, os.path.join(script_dir, "update-docs.py")]
     if not args.skip_push:
         docs_cmd.append("--push")

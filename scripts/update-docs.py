@@ -82,9 +82,9 @@ with DialogWatcher() as dw:
                     pass
 
     # Clear existing template screenshots
-    for f in os.listdir(out_folder):
-        if f.startswith("template-") and f.endswith(".png"):
-            os.remove(os.path.join(out_folder, f))
+    for fname in os.listdir(out_folder):
+        if fname.startswith("template-") and fname.endswith(".png"):
+            os.remove(os.path.join(out_folder, fname))
 
     wb = None
     try:

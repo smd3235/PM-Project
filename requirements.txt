@@ -1,0 +1,40 @@
+# Core project dependencies
+openpyxl==3.1.5
+psutil==7.2.2
+pywin32==311
+
+# Code quality and linting
+ruff==0.17.6
+mypy==2.4.1
+pyupgrade==3.22.0
+
+# Security scanning
+bandit==1.9.4
+pip-audit==2.1.0
+safety==3.8.1
+
+# Testing
+pytest==9.2.0
+pytest-asyncio==1.5.0
+pytest-cov==7.1.0
+pytest-timeout==2.4.0
+pytest-xdist==3.8.0
+hypothesis==6.170.17
+
+# File watching
+watchdog==7.1.0
+
+# Retry logic for flaky COM automation
+tenacity==9.2.1
+
+# Structured logging
+structlog==26.1.0
+
+# Rich terminal output
+rich==15.0.0
+
+# Environment variable management
+python-dotenv==1.2.4
+
+# Data analysis (for report analysis scripts)
+pandas==2.5.5
