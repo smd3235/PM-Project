@@ -110,10 +110,13 @@ def main():
     # 15. Optimize PNG images
     run([python, os.path.join(script_dir, "png_optimize.py")], "png_optimize (Pillow)", timeout=60000)
 
-    # 16. Format Markdown files
+    # 16. Verify report data consistency across Excel, screenshots, and source
+    run([python, os.path.join(script_dir, "verify_report.py")], "verify-report (data consistency)", timeout=60000)
+
+    # 17. Format Markdown files
     run([python, os.path.join(script_dir, "md_format.py")], "md_format (mdformat)", timeout=60000)
 
-    # 17. Update docs + README photos + commit
+    # 18. Update docs + README photos + commit
     docs_cmd = [python, os.path.join(script_dir, "update-docs.py")]
     if not args.skip_push:
         docs_cmd.append("--push")
