@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """pipeline.py
 Full reliable pipeline: compile gate -> lint -> typecheck -> security scan ->
+pyupgrade -> autoformat -> complexity -> deadcode -> deps ->
 sync modules -> run report -> screenshots -> docs -> git push.
 Headless throughout; no modal dialogs.
 """
@@ -75,16 +76,37 @@ def main():
     # 4. Security scan with bandit + pip-audit
     run([python, os.path.join(script_dir, "security-scan.py")], "security-scan (bandit + pip-audit)", timeout=120000)
 
-    # 5. Sync modules into xlsm + build non-macro zip
+    # 5. Modernize Python syntax with pyupgrade
+    run([python, os.path.join(script_dir, "pyupgrade_check.py")], "pyupgrade (syntax modernization)", timeout=60000)
+
+    # 6. Remove unused imports/variables with autoflake
+    run([python, os.path.join(script_dir, "autoformat.py")], "autoformat (autoflake)", timeout=60000)
+
+    # 7. Code complexity analysis with radon
+    run([python, os.path.join(script_dir, "complexity.py")], "complexity (radon)", timeout=60000)
+
+    # 8. Dead code detection with vulture
+    run([python, os.path.join(script_dir, "deadcode.py")], "deadcode (vulture)", timeout=60000)
+
+    # 9. Unused dependency detection with deptry
+    run([python, os.path.join(script_dir, "deps.py")], "deps (deptry)", timeout=60000)
+
+    # 10. Sync modules into xlsm + build non-macro zip
     run([python, os.path.join(script_dir, "sync_template.py"), "--package"], "sync_template (sync modules + zip)", timeout=120000)
 
-    # 6. End-to-end report build
+    # 11. End-to-end report build
     run([python, os.path.join(script_dir, "run-report.py")], "run-report (end-to-end build)", timeout=60000)
 
-    # 7. Regenerate screenshots
+    # 12. Regenerate screenshots
     run([python, os.path.join(script_dir, "snapshot-report.py")], "snapshot-report (screenshots)", timeout=60000)
 
-    # 8. Update docs + README photos + commit
+    # 13. Optimize PNG images
+    run([python, os.path.join(script_dir, "png_optimize.py")], "png_optimize (Pillow)", timeout=60000)
+
+    # 14. Format Markdown files
+    run([python, os.path.join(script_dir, "md_format.py")], "md_format (mdformat)", timeout=60000)
+
+    # 15. Update docs + README photos + commit
     docs_cmd = [python, os.path.join(script_dir, "update-docs.py")]
     if not args.skip_push:
         docs_cmd.append("--push")

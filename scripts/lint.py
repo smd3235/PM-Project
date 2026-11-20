@@ -55,30 +55,30 @@ def main():
         sys.exit(1)
     log(f"ruff version: {result.stdout.strip()}")
 
-# Run ruff check
-    ruff_args = ["check", "scripts/", "--output-format=text"]
+    # Run ruff check
+    ruff_args = ["check", "scripts/"]
     if args.fix:
         ruff_args.append("--fix")
 
     rc = run_ruff(ruff_args, "ruff check")
-    
+
     # Only fail on actual errors (E/F severity codes), not warnings (W/I/PLR/UP/S)
     if rc != 0:
         # Check if there are any E/F level errors
-        if result and result.stdout:
-            error_lines = [l for l in result.stdout.split('\n') if re.match(r'^\s*\w+\.py:\d+:\d+:\s*[EF]', l)]
-            if error_lines:
-                log(f"Lint failed with compile/error issues:")
-                for l in error_lines:
-                    print(f"  {l}")
-                sys.exit(rc)
-            else:
-                log(f"Lint warnings found (rc={rc}) but no errors - passing")
-        else:
-            log(f"Lint failed with exit code {rc}")
+        error_lines = [
+            l
+            for l in result.stdout.split("\n")
+            if re.match(r"^\s*\w+\.py:\d+:\d+:\s*[EF]", l)
+        ]
+        if error_lines:
+            log("Lint failed with compile/error issues:")
+            for l in error_lines:
+                print(f"  {l}")
             sys.exit(rc)
-
-    log("Lint passed: no issues found")
+        else:
+            log(f"Lint warnings found (rc={rc}) but no errors - passing")
+    else:
+        log("Lint passed: no issues found")
 
 
 if __name__ == "__main__":

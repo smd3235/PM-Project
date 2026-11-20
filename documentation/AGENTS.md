@@ -166,7 +166,7 @@ comparison found). Anything else is a bug.
 | `Reports/` | Generated reports — build artifacts, never committed. |
 | `Logs/` | Run logs, watcher log, compile-test log. Safe to delete. |
 | `backups/` | At most two master snapshots. Safe to delete. |
-| `scripts\` | All tooling: Python (`sync_template`, `test-compile`, `run-report`, `snapshot-report`, `update-docs`, `check-toc`, `audit-vba`, `lint`, `typecheck`, `security-scan`, `monitor-logs`, `pipeline`, `make_fake_data`, `make_prior`). New test scripts go here. |
+| `scripts\` | All tooling: Python (`sync_template`, `test-compile`, `run-report`, `snapshot-report`, `update-docs`, `check-toc`, `audit-vba`, `lint`, `typecheck`, `security-scan`, `pyupgrade_check`, `autoformat`, `complexity`, `deadcode`, `deps`, `monitor-logs`, `pipeline`, `make_fake_data`, `make_prior`). New test scripts go here. |
 | `scripts\temp\` | Temp/scratch files. Safe to delete. |
 | `documentation/` | `AGENTS.md` (rules), `CHANGELOG.md`, `README.md`, `screenshots/`, logo art. |
 | `.kilo/command/` | Kilo slash-command definitions (discovered by Kilo; do not move). |
@@ -240,10 +240,24 @@ output in `Reports\`, master snapshots in `backups\`.
 
 ## 13. Pipeline (`scripts\pipeline.py`)
 
-- `scripts\pipeline.py` runs the full mandatory loop (steps 1–9 of section 3) plus
+- `scripts\pipeline.py` runs the full mandatory loop (steps 1–13 of section 3) plus
   screenshots and docs, in order, headless, with 15-second timeouts on every Excel
   call. Use it as the single entry point for a verified change:
   `python scripts\pipeline.py` (add `--skip-push` to commit locally without pushing).
+- Pipeline steps:
+  1. test-compile (compile gate)
+  2. lint (ruff)
+  3. typecheck (mypy)
+  4. security-scan (bandit + pip-audit)
+  5. pyupgrade_check (syntax modernization)
+  6. autoformat (autoflake)
+  7. complexity (radon)
+  8. deadcode (vulture)
+  9. deps (deptry)
+  10. sync_template (sync modules + zip)
+  11. run-report (end-to-end build)
+  12. snapshot-report (screenshots)
+  13. update-docs (README photos + commit + push)
 - If any step fails, fix it before committing. Do not push a broken build.
 - Run it after every verified `.bas` change, every Python tooling change, and
   before every git push.
