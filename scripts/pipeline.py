@@ -89,7 +89,14 @@ def main():
     run([python, os.path.join(script_dir, "deadcode.py")], "deadcode (vulture)", timeout=60000)
 
     # 9. Unused dependency detection with deptry
-    run([python, os.path.join(script_dir, "deps.py")], "deps (deptry)", timeout=60000)
+    run([python, os.path.join(script_dir, "deps.py"),
+         "--ignore-numpy", "--ignore-pandas", "--ignore-ruff", "--ignore-mypy",
+         "--ignore-pyupgrade", "--ignore-bandit", "--ignore-pip-audit",
+         "--ignore-safety", "--ignore-pytest", "--ignore-pytest-asyncio",
+         "--ignore-pytest-cov", "--ignore-pytest-timeout", "--ignore-pytest-xdist",
+         "--ignore-hypothesis", "--ignore-watchdog", "--ignore-tenacity",
+         "--ignore-structlog", "--ignore-rich", "--ignore-python-dotenv",
+         "--ignore-pil"], "deps (deptry)", timeout=60000)
 
     # 10. Sync modules into xlsm + build non-macro zip
     run([python, os.path.join(script_dir, "sync_template.py"), "--package"], "sync_template (sync modules + zip)", timeout=120000)

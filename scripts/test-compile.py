@@ -6,14 +6,12 @@
 import argparse
 import os
 import shutil
-import sys
 import time
 from datetime import datetime
 
 import psutil
-import win32com.client
 
-from excel_guard import DEFAULT_TIMEOUT, DialogWatcher, ExcelGuard, log_hang, start_excel
+from excel_guard import DEFAULT_TIMEOUT, DialogWatcher, ExcelGuard, start_excel
 
 parser = argparse.ArgumentParser(description="Compile-test PM_Report_Macro.bas")
 parser.add_argument("--template", default=None)
@@ -48,7 +46,7 @@ log(f"=== Compile test started (template: {template}) ===")
 
 log_mark = 0
 if os.path.exists(watch_log):
-    with open(watch_log, "r", encoding="utf-8") as f:
+    with open(watch_log, encoding="utf-8") as f:
         log_mark = sum(1 for _ in f)
 
 run_error = None
@@ -85,7 +83,7 @@ with DialogWatcher() as dw:
     time.sleep(1)
     new_lines = []
     if os.path.exists(watch_log):
-        with open(watch_log, "r", encoding="utf-8") as f:
+        with open(watch_log, encoding="utf-8") as f:
             all_lines = f.readlines()
         if len(all_lines) > log_mark:
             new_lines = all_lines[log_mark:]

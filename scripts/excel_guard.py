@@ -115,7 +115,7 @@ class ExcelGuard:
         self.timer.start()
         return self
 
-    def __exit__(self, exc_type, exc, tb):
+    def __exit__(self, exc_type, exc, _tb):
         if self.timer:
             self.timer.cancel()
         if exc_type is not None:
@@ -146,7 +146,7 @@ class DialogWatcher:
     def __enter__(self):
         # Count existing lines so we only report new dialogs.
         if os.path.exists(watch_log):
-            with open(watch_log, "r", encoding="utf-8") as f:
+            with open(watch_log, encoding="utf-8") as f:
                 self.start_lines = sum(1 for _ in f)
         else:
             self.start_lines = 0
@@ -166,7 +166,7 @@ class DialogWatcher:
         real dialog entries (DIALOG: or KILLED EXCEL)."""
         if not os.path.exists(watch_log):
             return []
-        with open(watch_log, "r", encoding="utf-8") as f:
+        with open(watch_log, encoding="utf-8") as f:
             lines = f.readlines()
         new = lines[self.start_lines:]
         dialogs = []
@@ -176,7 +176,7 @@ class DialogWatcher:
                 dialogs.append(s)
         return dialogs
 
-    def __exit__(self, exc_type, exc, tb):
+    def __exit__(self, exc_type, exc, _tb):
         dialogs = []
         if self.proc:
             try:

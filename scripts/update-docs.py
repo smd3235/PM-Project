@@ -6,7 +6,6 @@ import argparse
 import glob as _glob
 import os
 import subprocess
-import sys
 
 from excel_guard import DEFAULT_TIMEOUT, DialogWatcher, ExcelGuard, start_excel
 
@@ -110,7 +109,7 @@ with DialogWatcher() as dw:
 
 # Update README
 readme_path = os.path.join(project_root, "README.md")
-with open(readme_path, "r", encoding="utf-8") as f:
+with open(readme_path, encoding="utf-8") as f:
     readme = f.read()
 
 if "template-start-here.png" not in readme:

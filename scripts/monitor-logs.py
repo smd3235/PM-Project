@@ -13,7 +13,6 @@ import os
 import re
 import sys
 import time
-from datetime import datetime
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(script_dir)
@@ -41,8 +40,7 @@ def follow(path, stall_ms=10000):
     """Tail a file live, printing lines and flagging errors/stalls."""
     print(f"Following {path} (stall threshold {stall_ms}ms). Ctrl+C to stop.")
     prev_ts = None
-    prev_line = None
-    with open(path, "r", encoding="utf-8", errors="replace") as f:
+    with open(path, encoding="utf-8", errors="replace") as f:
         f.seek(0, os.SEEK_END)
         while True:
             line = f.readline()
@@ -67,7 +65,6 @@ def follow(path, stall_ms=10000):
             else:
                 print(line)
             prev_ts = ts
-            prev_line = line
 
 
 def summarize(fragment=""):
@@ -77,7 +74,7 @@ def summarize(fragment=""):
         return 0
     path = files[-1]
     print(f"Newest run log: {os.path.basename(path)}  ({os.path.getsize(path)} bytes)")
-    with open(path, "r", encoding="utf-8", errors="replace") as f:
+    with open(path, encoding="utf-8", errors="replace") as f:
         lines = [ln.rstrip("\n") for ln in f if ln.strip()]
     if not lines:
         print("  (empty)")
@@ -104,7 +101,7 @@ def summarize(fragment=""):
     # watcher.log dialogs
     watcher = os.path.join(log_dir, "watcher.log")
     if os.path.exists(watcher):
-        with open(watcher, "r", encoding="utf-8", errors="replace") as f:
+        with open(watcher, encoding="utf-8", errors="replace") as f:
             wl = [ln.rstrip("\n") for ln in f if ln.strip()]
         if wl:
             print(f"  watcher.log entries: {len(wl)}")

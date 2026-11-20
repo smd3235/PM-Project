@@ -4,7 +4,6 @@
 import ctypes
 import ctypes.wintypes as wintypes
 import os
-import sys
 import time
 from datetime import datetime
 

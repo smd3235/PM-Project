@@ -30,7 +30,7 @@ seen_names = set()
 problems = []
 for bas in bas_files:
     path = os.path.join(project_root, bas)
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         content = f.read()
     names = name_re.findall(content)
     vbname = names[0] if names else None

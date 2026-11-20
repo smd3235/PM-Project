@@ -41,7 +41,12 @@ def main():
         sys.exit(1)
     log(f"autoflake version: {result.stdout.strip()}")
 
-    cmd = ["python", "-m", "autoflake", "scripts/"]
+    # Build command - pass individual .py files
+    cmd = ["python", "-m", "autoflake"]
+    for root, dirs, files in os.walk(os.path.join(project_root, "scripts")):
+        for f in files:
+            if f.endswith(".py"):
+                cmd.append(os.path.join(root, f))
     if not args.fix:
         cmd.append("--check")
 

@@ -66,7 +66,7 @@ checked = 0
 
 for bas in bas_files:
     path = os.path.join(project_root, bas)
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         lines = f.readlines()
     content = "".join(lines)
     checked += 1

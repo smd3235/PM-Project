@@ -44,8 +44,14 @@ def main():
         sys.exit(1)
     log("pyupgrade is available")
 
-    # Build command
-    cmd = ["python", "-m", "pyupgrade", "scripts/"]
+    # Build command - pass individual .py files, not the directory
+    cmd = ["python", "-m", "pyupgrade"]
+    # Collect all .py files in scripts/
+    py_files = []
+    for root, dirs, files in os.walk(os.path.join(project_root, "scripts")):
+        for f in files:
+            if f.endswith(".py"):
+                cmd.append(os.path.join(root, f))
     if args.py3_plus:
         cmd.append("--py3-plus")
     if not args.fix:
