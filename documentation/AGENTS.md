@@ -39,12 +39,16 @@ Run in order. Stop at the first failure. Do not push a broken build.
 
 | Step | Command | Purpose |
 |------|---------|---------|
-| 1 | `python scripts\test-compile.py` | Compile gate — injects a probe macro, forces VBA to compile every procedure in every module. Fast — seconds. |
-| 2 | `python scripts\sync_template.py` | Imports all six `.bas` modules into the master `.xlsm` and rebuilds `START HERE`. Use `--package` to also rebuild the deploy zip. |
-| 3 | `python scripts\run-report.py` | Full end-to-end build against the fake export. Must return `RESULT=OK\|...\|124\|0\|<prior>`. |
-| 4 | `python scripts\audit-vba.py` | Deep static inspection of all `.bas` modules. Read-only; a candidate list, not a gate. |
-| 5 | Read `Logs\PM_Report_*.log` | Every step is timestamped with milliseconds since the previous line. |
-| 6 | Kill any stray `EXCEL` process before finishing. | — |
+| 1 | `python scripts\\test-compile.py` | Compile gate — injects a probe macro, forces VBA to compile every procedure in every module. Fast — seconds. |
+| 2 | `python scripts\\lint.py` | Lint Python code with ruff — catches style issues, unused imports, syntax problems. |
+| 3 | `python scripts\\typecheck.py` | Type-check Python code with mypy — catches type mismatches and missing annotations. |
+| 4 | `python scripts\\security-scan.py` | Security scan with bandit (source) + pip-audit (dependencies) — finds vulnerabilities. |
+| 5 | `python scripts\\sync_template.py` | Imports all six `.bas` modules into the master `.xlsm` and rebuilds `START HERE`. Use `--package` to also rebuild the deploy zip. |
+| 6 | `python scripts\\run-report.py` | Full end-to-end build against the fake export. Must return `RESULT=OK\|...\|124\|0\|<prior>`. |
+| 7 | `python scripts\\audit-vba.py` | Deep static inspection of all `.bas` modules. Read-only; a candidate list, not a gate. |
+| 8 | Read `Logs\\PM_Report_*.log` | Every step is timestamped with milliseconds since the previous line. |
+| 9 | Kill any stray `EXCEL` process before finishing. | ” |
+
 
 **Expected result:** `RESULT=OK|...|124|0|<prior>` (124 PMs, 0 skipped, prior
 comparison found). Anything else is a bug.
@@ -162,7 +166,7 @@ comparison found). Anything else is a bug.
 | `Reports/` | Generated reports — build artifacts, never committed. |
 | `Logs/` | Run logs, watcher log, compile-test log. Safe to delete. |
 | `backups/` | At most two master snapshots. Safe to delete. |
-| `scripts\` | All tooling: Python (`sync_template`, `test-compile`, `run-report`, `snapshot-report`, `update-docs`, `check-toc`, `audit-vba`, `monitor-logs`, `pipeline`, `make_fake_data`, `make_prior`). New test scripts go here. |
+| `scripts\` | All tooling: Python (`sync_template`, `test-compile`, `run-report`, `snapshot-report`, `update-docs`, `check-toc`, `audit-vba`, `lint`, `typecheck`, `security-scan`, `monitor-logs`, `pipeline`, `make_fake_data`, `make_prior`). New test scripts go here. |
 | `scripts\temp\` | Temp/scratch files. Safe to delete. |
 | `documentation/` | `AGENTS.md` (rules), `CHANGELOG.md`, `README.md`, `screenshots/`, logo art. |
 | `.kilo/command/` | Kilo slash-command definitions (discovered by Kilo; do not move). |
@@ -236,7 +240,7 @@ output in `Reports\`, master snapshots in `backups\`.
 
 ## 13. Pipeline (`scripts\pipeline.py`)
 
-- `scripts\pipeline.py` runs the full mandatory loop (steps 1–5 of section 3) plus
+- `scripts\pipeline.py` runs the full mandatory loop (steps 1–9 of section 3) plus
   screenshots and docs, in order, headless, with 15-second timeouts on every Excel
   call. Use it as the single entry point for a verified change:
   `python scripts\pipeline.py` (add `--skip-push` to commit locally without pushing).
