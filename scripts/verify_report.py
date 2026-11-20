@@ -192,11 +192,6 @@ def verify_report(report_path, screenshot_path=None, source_path=None):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Verify PM report data consistency across Excel, screenshots, and source data")
-    parser.add_argument("--report", required=True, help="Path to Excel report workbook")
-    parser.add_argument("--screenshot", default=None, help="Path to screenshot PNG")
-    parser.add_argument("--source", default=None, help="Path to source data export (.xlsx)")
-    args = parser.parse_args()
-
     parser.add_argument("--report", default=None, help="Path to Excel report workbook (auto-detects latest if omitted)")
     parser.add_argument("--screenshot", default=None, help="Path to screenshot PNG (auto-detects latest if omitted)")
     parser.add_argument("--source", default=None, help="Path to source data export (.xlsx)")
