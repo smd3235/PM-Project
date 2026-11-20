@@ -15,16 +15,16 @@ PM Requests Report Builder and adapt it for another Excel/VBA project.
 ## VBA procedures to copy
 
 1. GetEmailTemplate() - reads HTML template from EmailTemplate sheet
-2. GetCCEmails() - reads CC from EmailSettings B1
-3. GetToEmails() - reads To from EmailSettings B3
-4. EditCCEmails() - unhides EmailSettings, activates B1
-5. EditToEmails() - unhides EmailSettings, activates B3
-6. DoneEditing() - hides active sheet, returns to START HERE
-7. GenerateManagerEmail() - creates email from active sheet data
-8. CreateEmailFromReport(outWb) - creates email from workbook data
-9. SetupSheetVisibility() - moves START HERE first, hides all others
-10. SetupEmailButtons() - creates Edit CC / Edit To buttons
-11. SetupGenerateEmailButton() - creates Generate Email button
+1. GetCCEmails() - reads CC from EmailSettings B1
+1. GetToEmails() - reads To from EmailSettings B3
+1. EditCCEmails() - unhides EmailSettings, activates B1
+1. EditToEmails() - unhides EmailSettings, activates B3
+1. DoneEditing() - hides active sheet, returns to START HERE
+1. GenerateManagerEmail() - creates email from active sheet data
+1. CreateEmailFromReport(outWb) - creates email from workbook data
+1. SetupSheetVisibility() - moves START HERE first, hides all others
+1. SetupEmailButtons() - creates Edit CC / Edit To buttons
+1. SetupGenerateEmailButton() - creates Generate Email button
 
 ## Sheets to create
 
@@ -44,12 +44,12 @@ AddShape at column K, row 1: green rounded rect, text Generate Email, OnAction G
 ## Adaptation steps
 
 1. Copy VBA procedures into your module
-2. Create EmailTemplate and EmailSettings sheets
-3. Add buttons to START HERE
-4. Add Generate Email button to data tabs
-5. Convert email template to HTML (bold, bullets, highlights)
-6. Store HTML in EmailTemplate A1 with placeholder
-7. Test
+1. Create EmailTemplate and EmailSettings sheets
+1. Add buttons to START HERE
+1. Add Generate Email button to data tabs
+1. Convert email template to HTML (bold, bullets, highlights)
+1. Store HTML in EmailTemplate A1 with placeholder
+1. Test
 
 ## Key design decisions
 

@@ -2,7 +2,7 @@
 
 These rules apply to every change, no exceptions.
 
----
+______________________________________________________________________
 
 ## 1. Project overview
 
@@ -15,7 +15,7 @@ embedded module inside the `.xlsm` directly.
 Every change flows through the **mandatory loop** (section 2) before it is
 committed and pushed.
 
----
+______________________________________________________________________
 
 ## 2. The one true source — VBA
 
@@ -31,24 +31,23 @@ committed and pushed.
   `PM_Report_UI.bas`, `PM_Report_Host.bas`, `PM_Report_Setup.bas`,
   `PM_Report_Data.bas`, `PM_Report_Output.bas`.
 
----
+______________________________________________________________________
 
 ## 3. Mandatory loop (run after every `.bas` change)
 
 Run in order. Stop at the first failure. Do not push a broken build.
 
-| Step | Command | Purpose |
-|------|---------|---------|
-| 1 | `python scripts\\test-compile.py` | Compile gate — injects a probe macro, forces VBA to compile every procedure in every module. Fast — seconds. |
-| 2 | `python scripts\\lint.py` | Lint Python code with ruff — catches style issues, unused imports, syntax problems. |
-| 3 | `python scripts\\typecheck.py` | Type-check Python code with mypy — catches type mismatches and missing annotations. |
-| 4 | `python scripts\\security-scan.py` | Security scan with bandit (source) + pip-audit (dependencies) — finds vulnerabilities. |
-| 5 | `python scripts\\sync_template.py` | Imports all six `.bas` modules into the master `.xlsm` and rebuilds `START HERE`. Use `--package` to also rebuild the deploy zip. |
-| 6 | `python scripts\\run-report.py` | Full end-to-end build against the fake export. Must return `RESULT=OK\|...\|124\|0\|<prior>`. |
-| 7 | `python scripts\\audit-vba.py` | Deep static inspection of all `.bas` modules. Read-only; a candidate list, not a gate. |
-| 8 | Read `Logs\\PM_Report_*.log` | Every step is timestamped with milliseconds since the previous line. |
-| 9 | Kill any stray `EXCEL` process before finishing. | ” |
-
+| Step | Command                                          | Purpose                                                                                                                           |
+| ---- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | `python scripts\\test-compile.py`                | Compile gate — injects a probe macro, forces VBA to compile every procedure in every module. Fast — seconds.                      |
+| 2    | `python scripts\\lint.py`                        | Lint Python code with ruff — catches style issues, unused imports, syntax problems.                                               |
+| 3    | `python scripts\\typecheck.py`                   | Type-check Python code with mypy — catches type mismatches and missing annotations.                                               |
+| 4    | `python scripts\\security-scan.py`               | Security scan with bandit (source) + pip-audit (dependencies) — finds vulnerabilities.                                            |
+| 5    | `python scripts\\sync_template.py`               | Imports all six `.bas` modules into the master `.xlsm` and rebuilds `START HERE`. Use `--package` to also rebuild the deploy zip. |
+| 6    | `python scripts\\run-report.py`                  | Full end-to-end build against the fake export. Must return `RESULT=OK\|...\|124\|0\|<prior>`.                                     |
+| 7    | `python scripts\\audit-vba.py`                   | Deep static inspection of all `.bas` modules. Read-only; a candidate list, not a gate.                                            |
+| 8    | Read `Logs\\PM_Report_*.log`                     | Every step is timestamped with milliseconds since the previous line.                                                              |
+| 9    | Kill any stray `EXCEL` process before finishing. | ”                                                                                                                                 |
 
 **Expected result:** `RESULT=OK|...|124|0|<prior>` (124 PMs, 0 skipped, prior
 comparison found). Anything else is a bug.
@@ -64,7 +63,7 @@ comparison found). Anything else is a bug.
 - Never trust a clean log from a workbook that was built and closed without saving
   — it gives a false pass that looks exactly like a working gate.
 
----
+______________________________________________________________________
 
 ## 4. Excel handling — hard rules
 
@@ -87,7 +86,7 @@ comparison found). Anything else is a bug.
   survives every `Application.Run`. `test-compile.py` triggers the full-project
   compile; that is the gate.
 
----
+______________________________________________________________________
 
 ## 5. VBA-specific rules
 
@@ -128,7 +127,7 @@ comparison found). Anything else is a bug.
   - Module-level `Public`/`Private` declarations outside the declarations section
   - Array indexing `data(r, col)` without recent `UBound`/`LastUsedRow` bounds check
 
----
+______________________________________________________________________
 
 ## 6. Script language — Python only
 
@@ -140,7 +139,7 @@ comparison found). Anything else is a bug.
 - All Python scripts resolve paths from `__file__` / `os.path.dirname`, never
   from hardcoded user profiles.
 
----
+______________________________________________________________________
 
 ## 7. Logging standard
 
@@ -153,24 +152,24 @@ comparison found). Anything else is a bug.
   so every user-visible step is traced automatically.
 - Errors are logged as `!!! ERROR <n>: <description>   [stage: ...]`.
 
----
+______________________________________________________________________
 
 ## 8. File layout
 
-| Path | Role |
-|------|------|
-| `PM_Report_Macro.bas` | Canonical VBA source. |
-| `PM_Report_UI.bas` / `PM_Report_Host.bas` / `PM_Report_Setup.bas` / `PM_Report_Data.bas` / `PM_Report_Output.bas` | Supporting VBA modules. |
-| `PM_Requests_Master_Template.xlsm` | Master workbook (embedded module, `START HERE`, settings). |
-| `AOTIOpsTreatmentPMDatesResults_FAKE.xlsx` | Synthetic export for regression tests. |
-| `Reports/` | Generated reports — build artifacts, never committed. |
-| `Logs/` | Run logs, watcher log, compile-test log. Safe to delete. |
-| `backups/` | At most two master snapshots. Safe to delete. |
-| `scripts\` | All tooling: Python (`sync_template`, `test-compile`, `run-report`, `snapshot-report`, `update-docs`, `check-toc`, `audit-vba`, `lint`, `typecheck`, `security-scan`, `pyupgrade_check`, `autoformat`, `complexity`, `deadcode`, `deps`, `monitor-logs`, `pipeline`, `make_fake_data`, `make_prior`). New test scripts go here. |
-| `scripts\temp\` | Temp/scratch files. Safe to delete. |
-| `documentation/` | `AGENTS.md` (rules), `CHANGELOG.md`, `README.md`, `screenshots/`, logo art. |
-| `.kilo/command/` | Kilo slash-command definitions (discovered by Kilo; do not move). |
-| `README.md` (root) | Canonical GitHub-facing README. |
+| Path                                                                                                              | Role                                                                                                                                                                                                                                                                                                                            |
+| ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PM_Report_Macro.bas`                                                                                             | Canonical VBA source.                                                                                                                                                                                                                                                                                                           |
+| `PM_Report_UI.bas` / `PM_Report_Host.bas` / `PM_Report_Setup.bas` / `PM_Report_Data.bas` / `PM_Report_Output.bas` | Supporting VBA modules.                                                                                                                                                                                                                                                                                                         |
+| `PM_Requests_Master_Template.xlsm`                                                                                | Master workbook (embedded module, `START HERE`, settings).                                                                                                                                                                                                                                                                      |
+| `AOTIOpsTreatmentPMDatesResults_FAKE.xlsx`                                                                        | Synthetic export for regression tests.                                                                                                                                                                                                                                                                                          |
+| `Reports/`                                                                                                        | Generated reports — build artifacts, never committed.                                                                                                                                                                                                                                                                           |
+| `Logs/`                                                                                                           | Run logs, watcher log, compile-test log. Safe to delete.                                                                                                                                                                                                                                                                        |
+| `backups/`                                                                                                        | At most two master snapshots. Safe to delete.                                                                                                                                                                                                                                                                                   |
+| `scripts\`                                                                                                        | All tooling: Python (`sync_template`, `test-compile`, `run-report`, `snapshot-report`, `update-docs`, `check-toc`, `audit-vba`, `lint`, `typecheck`, `security-scan`, `pyupgrade_check`, `autoformat`, `complexity`, `deadcode`, `deps`, `monitor-logs`, `pipeline`, `make_fake_data`, `make_prior`). New test scripts go here. |
+| `scripts\temp\`                                                                                                   | Temp/scratch files. Safe to delete.                                                                                                                                                                                                                                                                                             |
+| `documentation/`                                                                                                  | `AGENTS.md` (rules), `CHANGELOG.md`, `README.md`, `screenshots/`, logo art.                                                                                                                                                                                                                                                     |
+| `.kilo/command/`                                                                                                  | Kilo slash-command definitions (discovered by Kilo; do not move).                                                                                                                                                                                                                                                               |
+| `README.md` (root)                                                                                                | Canonical GitHub-facing README.                                                                                                                                                                                                                                                                                                 |
 
 **Hard rule: every file stays inside the project folder.** Scripts resolve paths
 from `__file__` / `os.path.dirname`, never from `%TEMP%`, `AppData`, or a
@@ -178,7 +177,7 @@ hardcoded user profile, and never write scratch files outside the project.
 Scratch belongs in `Logs\` (gitignored), `scripts\temp\` (gitignored), build
 output in `Reports\`, master snapshots in `backups\`.
 
----
+______________________________________________________________________
 
 ## 9. Temp file paths
 
@@ -190,7 +189,7 @@ output in `Reports\`, master snapshots in `backups\`.
   user profile outside this project.
 - All other files stay inside the project folder (see section 8 hard rule).
 
----
+______________________________________________________________________
 
 ## 10. Documentation
 
@@ -204,7 +203,7 @@ output in `Reports\`, master snapshots in `backups\`.
 - Everything else Markdown stays in `documentation/` (plus the root `AGENTS.md`
   stub and `.kilo/command/*.md`, which Kilo must find where it is).
 
----
+______________________________________________________________________
 
 ## 11. Version control
 
@@ -220,15 +219,15 @@ output in `Reports\`, master snapshots in `backups\`.
 - Never commit secrets or keys.
 - After committing, report the commit id and confirm the tree is clean.
 
----
+______________________________________________________________________
 
 ## 12. Deployment
 
 - After every verified change (mandatory loop passed), build **both** zips:
   1. `Project-Local-Build.zip` — non-macro `PM_Requests_Master_Template_(No Macros).xlsx`
-     + all six `.bas` modules + `BUILD-INSTRUCTIONS.txt` (what work machines import
-     into a fresh macro-free workbook).
-  2. `PM_Requests_Master_Template_Macro_Archive.zip` — macro-enabled
+     - all six `.bas` modules + `BUILD-INSTRUCTIONS.txt` (what work machines import
+       into a fresh macro-free workbook).
+  1. `PM_Requests_Master_Template_Macro_Archive.zip` — macro-enabled
      `PM_Requests_Master_Template.xlsm` + `BUILD-INSTRUCTIONS.txt` only (the `.bas`
      modules are already embedded; no separate `.bas` files).
 - End users receive only the `.xlsm`. The `.bas`, `scripts\`, fake export, and logs
@@ -236,7 +235,7 @@ output in `Reports\`, master snapshots in `backups\`.
 - The template must stay self-contained: module imported, logo embedded, button wired
   to `BuildManagerTabs`.
 
----
+______________________________________________________________________
 
 ## 13. Pipeline (`scripts\pipeline.py`)
 
@@ -246,28 +245,30 @@ output in `Reports\`, master snapshots in `backups\`.
   `python scripts\pipeline.py` (add `--skip-push` to commit locally without pushing).
 - Pipeline steps:
   1. test-compile (compile gate)
-  2. lint (ruff)
-  3. typecheck (mypy)
-  4. security-scan (bandit + pip-audit)
-  5. pyupgrade_check (syntax modernization)
-  6. autoformat (autoflake)
-  7. complexity (radon)
-  8. deadcode (vulture)
-  9. deps (deptry)
-  10. sync_template (sync modules + zip)
-  11. run-report (end-to-end build)
-  12. snapshot-report (screenshots)
-  13. update-docs (README photos + commit + push)
+  1. lint (ruff)
+  1. typecheck (mypy)
+  1. security-scan (bandit + pip-audit)
+  1. pyupgrade_check (syntax modernization)
+  1. autoformat (autoflake)
+  1. complexity (radon)
+  1. deadcode (vulture)
+  1. deps (deptry)
+  1. sync_template (sync modules + zip)
+  1. run-report (end-to-end build)
+  1. snapshot-report (screenshots)
+  1. update-docs (README photos + commit + push)
 - If any step fails, fix it before committing. Do not push a broken build.
 - Run it after every verified `.bas` change, every Python tooling change, and
   before every git push.
 
----
+______________________________________________________________________
 
 ## 14. CHANGELOG format
 
 - Update `documentation\CHANGELOG.md` with every change, newest entry first.
+
 - Entry format: `- **YYYY-MM-DD HH:MM:SS** — what changed and why.`
+
 - Every entry must include: date/time, scope (VBA / Python / docs / deploy), and
   a one-line rationale. Example:
 
@@ -278,7 +279,7 @@ output in `Reports\`, master snapshots in `backups\`.
 
 - Never omit the rationale. A change without "why" is not reviewable.
 
----
+______________________________________________________________________
 
 ## 15. Root AGENTS.md stub sync
 
@@ -291,7 +292,7 @@ output in `Reports\`, master snapshots in `backups\`.
 - The root stub's short version (the 6-bullet summary) must stay consistent with
   the full rules; update both together.
 
----
+______________________________________________________________________
 
 ## 16. Branching strategy
 
@@ -300,7 +301,7 @@ output in `Reports\`, master snapshots in `backups\`.
   hyphens, no spaces).
 - Delete feature branches after merging. Never leave stale branches.
 
----
+______________________________________________________________________
 
 ## 17. Fixture / test data management
 
@@ -312,7 +313,7 @@ output in `Reports\`, master snapshots in `backups\`.
   `CHANGELOG.md`.
 - Never hand-edit the fake export; regenerate it instead.
 
----
+______________________________________________________________________
 
 ## 18. Screenshot naming and regeneration
 
@@ -325,7 +326,7 @@ output in `Reports\`, master snapshots in `backups\`.
 - After regenerating, commit the changed PNGs with the code change that
   motivated them.
 
----
+______________________________________________________________________
 
 ## 19. check-toc.py vs audit-vba.py — which to run when
 
@@ -339,7 +340,7 @@ output in `Reports\`, master snapshots in `backups\`.
 - Run both after any `.bas` edit; `check-toc.py` catches split drift,
   `audit-vba.py` catches runtime-risk patterns.
 
----
+______________________________________________________________________
 
 ## 20. Log rotation and cleanup
 
@@ -350,7 +351,7 @@ output in `Reports\`, master snapshots in `backups\`.
   beyond a few thousand lines.
 - Never commit `.log` files.
 
----
+______________________________________________________________________
 
 ## 21. Backup rotation
 
@@ -360,7 +361,7 @@ output in `Reports\`, master snapshots in `backups\`.
 - When creating a third snapshot, delete the oldest one. Never exceed two.
 - Name backups `PM_Requests_Master_Template_<YYYYMMDD>_<HHMM>.xlsm`.
 
----
+______________________________________________________________________
 
 ## 22. Rollback after a failed sync
 
@@ -373,7 +374,7 @@ output in `Reports\`, master snapshots in `backups\`.
 - After any rollback, re-run `test-compile.py` to confirm the restored state
   compiles cleanly before attempting further changes.
 
----
+______________________________________________________________________
 
 ## 23. Stray Excel cleanup procedure
 
@@ -385,7 +386,7 @@ output in `Reports\`, master snapshots in `backups\`.
   nothing. If it does, kill it.
 - Never leave Excel running overnight or across sessions.
 
----
+______________________________________________________________________
 
 ## 24. README dual maintenance
 

@@ -5,12 +5,12 @@ GitHub renders the root copy on the repository page, so it is the one to edit.
 
 This folder holds the rest of the documentation:
 
-| File | Contents |
-|---|---|
-| [AGENTS.md](AGENTS.md) | The rule set for anyone (human or agent) changing this project. |
-| [CHANGELOG.md](CHANGELOG.md) | Version history, newest first, with timestamps. |
-| `screenshots/` | PNG exports of `START HERE`, the Dashboard, and a manager tab, produced by `scripts\snapshot-report.py`. |
-| `aoti-logo.png`, `aoti-logo-2023.svg` | Logo art used by the report Dashboard. |
+| File                                  | Contents                                                                                                 |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| [AGENTS.md](AGENTS.md)                | The rule set for anyone (human or agent) changing this project.                                          |
+| [CHANGELOG.md](CHANGELOG.md)          | Version history, newest first, with timestamps.                                                          |
+| `screenshots/`                        | PNG exports of `START HERE`, the Dashboard, and a manager tab, produced by `scripts\snapshot-report.py`. |
+| `aoti-logo.png`, `aoti-logo-2023.svg` | Logo art used by the report Dashboard.                                                                   |
 
 Regenerate the screenshots after a layout change:
 

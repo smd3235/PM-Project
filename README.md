@@ -8,14 +8,15 @@ the prior week's report compared automatically.
 
 **Version 1.4** | Excel + VBA (desktop) | Windows and macOS | No add-ins, no install
 
----
+______________________________________________________________________
 
 ## Work-PC build (macro-blocked machines)
 
 Download Project-Local-Build.zip from the repo, extract, and follow BUILD-INSTRUCTIONS.txt.
-The ZIP contains a macro-free PM_Requests_Master_Template_(No Macros).xlsx plus all VBA modules;
+The ZIP contains a macro-free PM_Requests_Master_Template\_(No Macros).xlsx plus all VBA modules;
 import them via Alt+F11 -> File -> Import File..., then Save As .xlsm.
 This avoids Windows/Org "Microsoft has blocked macros" issues on locked-down machines.
+
 ## Contents
 
 - [Why this exists](#why-this-exists)
@@ -37,7 +38,7 @@ This avoids Windows/Org "Microsoft has blocked macros" issues on locked-down mac
 - [Known limitations](#known-limitations)
 - [Changelog](#changelog)
 
----
+______________________________________________________________________
 
 ## Why this exists
 
@@ -49,51 +50,51 @@ copy-paste that produced a slightly different file every time.
 This workbook makes it deterministic: one button, one input file, one output file, and a
 log that says exactly what happened.
 
----
+______________________________________________________________________
 
 ## What the report contains
 
 The generated workbook has three kinds of sheet, in this order:
 
-| # | Sheet | Contents |
-|---|---|---|
-| 1 | **Dashboard** | Six KPI cards, a hyperlinked manager table, a Sales Rep grid, a bar chart, the logo, and a footnote naming the source and prior files. |
+| #    | Sheet                         | Contents                                                                                                                                             |
+| ---- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | **Dashboard**                 | Six KPI cards, a hyperlinked manager table, a Sales Rep grid, a bar chart, the logo, and a footnote naming the source and prior files.               |
 | 2..n | **One tab per Sales Manager** | Banner, four KPI cards, a full-width "PMs by Sales Rep" card, and the manager's rows in a filterable, banded table. Sorted by manager **last** name. |
-| n+1 | **Raw Data** | The source export, copied verbatim, as the last tab. |
+| n+1  | **Raw Data**                  | The source export, copied verbatim, as the last tab.                                                                                                 |
 
 Rows that are not PM requests are classified, counted in the log, and left out of the
 report - see [Source file requirements](#source-file-requirements).
 
----
+______________________________________________________________________
 
 ## Quick start
 
 1. Open `PM_Requests_Master_Template.xlsm` in desktop Excel.
-2. If the yellow bar says macros are disabled, click **Enable Content** (or set
+1. If the yellow bar says macros are disabled, click **Enable Content** (or set
    **File > Options > Trust Center > Trust Center Settings > Macro Settings**).
-3. Go to the **START HERE** sheet and click **CREATE PM REQUEST REPORT**.
-4. Pick the current raw export (`.xlsx`, `.xlsm`, `.xlsb`, `.xls`).
-5. The first run asks where to save reports. That folder is remembered in the very-hidden
+1. Go to the **START HERE** sheet and click **CREATE PM REQUEST REPORT**.
+1. Pick the current raw export (`.xlsx`, `.xlsm`, `.xlsb`, `.xls`).
+1. The first run asks where to save reports. That folder is remembered in the very-hidden
    `PM Settings` sheet and reused from then on.
-6. The finished report opens on its Dashboard, saved as `PM Requests YYYY-MM-DD.xlsx`.
+1. The finished report opens on its Dashboard, saved as `PM Requests YYYY-MM-DD.xlsx`.
 
 The button is a self-repairing form control: `SetupReportButton` runs at the start of every
 build and re-creates `btnCreatePMReport` if it is missing or broken, so a deleted button is
 never a support call.
 
----
+______________________________________________________________________
 
 ## The weekly run, step by step
 
-| Step | What happens | What can go wrong |
-|---|---|---|
-| 1 | You pick the raw export. | Picking the master workbook itself is rejected with a clear message. |
-| 2 | The prior report is found **automatically** in the remembered output folder (newest report with enough name overlap). Nothing to pick. | No prior report is fine: prior-based cards show 0 and no comparison is done. |
-| 3 | The macro scans the first 30 rows of every sheet for `Assigned Sales Manager` and `Treatment Status`, then loads the whole used range into `Raw Data`. | Missing header -> "Could not find a worksheet containing both required headers". |
-| 4 | Rows are classified: assigned + a PM-request status = a PM request, grouped by manager. | No rows -> "The selected raw-data file has no data rows". |
-| 5 | Manager tabs are built, sorted by last name, formatted, filtered, frozen. | - |
-| 6 | Dashboard is built and moved to the front; `Raw Data` is copied last; tabs are coloured; the window is maximized on the Dashboard at 90% zoom. | - |
-| 7 | Saved as `PM Requests YYYY-MM-DD.xlsx`; a numbered name `(2)`, `(3)` is used if that file exists. Nothing is ever overwritten. | Folder missing -> you are asked for a replacement. |
+| Step | What happens                                                                                                                                           | What can go wrong                                                                |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| 1    | You pick the raw export.                                                                                                                               | Picking the master workbook itself is rejected with a clear message.             |
+| 2    | The prior report is found **automatically** in the remembered output folder (newest report with enough name overlap). Nothing to pick.                 | No prior report is fine: prior-based cards show 0 and no comparison is done.     |
+| 3    | The macro scans the first 30 rows of every sheet for `Assigned Sales Manager` and `Treatment Status`, then loads the whole used range into `Raw Data`. | Missing header -> "Could not find a worksheet containing both required headers". |
+| 4    | Rows are classified: assigned + a PM-request status = a PM request, grouped by manager.                                                                | No rows -> "The selected raw-data file has no data rows".                        |
+| 5    | Manager tabs are built, sorted by last name, formatted, filtered, frozen.                                                                              | -                                                                                |
+| 6    | Dashboard is built and moved to the front; `Raw Data` is copied last; tabs are coloured; the window is maximized on the Dashboard at 90% zoom.         | -                                                                                |
+| 7    | Saved as `PM Requests YYYY-MM-DD.xlsx`; a numbered name `(2)`, `(3)` is used if that file exists. Nothing is ever overwritten.                         | Folder missing -> you are asked for a replacement.                               |
 
 The source export is opened **read-only** and closed without saving. The master workbook is
 never modified except for its remembered output-folder setting.
@@ -101,7 +102,7 @@ never modified except for its remembered output-folder setting.
 A typical run on the 124-row test export takes **~4.4 s**, of which the Dashboard is the
 slowest single step (~0.7 s).
 
----
+______________________________________________________________________
 
 ## The Dashboard
 
@@ -109,14 +110,14 @@ slowest single step (~0.7 s).
 
 Six KPI cards, each with a label, a big number, and a caption:
 
-| Card | Caption | Meaning |
-|---|---|---|
-| **PMs This Week** | TOTAL | Rows written to manager tabs. |
-| **Prior Report** | LAST WEEK | PMs on the prior report's manager tabs. |
-| **Completed** | SINCE LAST WEEK | On the prior report, not on this one. |
-| **New PMs** | ADDED THIS WEEK | On this report, not on the prior one. |
-| **Sales Reps** | DOING THEM | Distinct names across the manager tabs. |
-| **Still Open From Prior** | - | Prior PMs still present this week. |
+| Card                      | Caption         | Meaning                                 |
+| ------------------------- | --------------- | --------------------------------------- |
+| **PMs This Week**         | TOTAL           | Rows written to manager tabs.           |
+| **Prior Report**          | LAST WEEK       | PMs on the prior report's manager tabs. |
+| **Completed**             | SINCE LAST WEEK | On the prior report, not on this one.   |
+| **New PMs**               | ADDED THIS WEEK | On this report, not on the prior one.   |
+| **Sales Reps**            | DOING THEM      | Distinct names across the manager tabs. |
+| **Still Open From Prior** | -               | Prior PMs still present this week.      |
 
 Below the cards: two section labels, then a **Sales Manager** table
 (`Sales Manager | PMs | Prior | Completed | New | Still Open`) whose manager cells are
@@ -125,7 +126,7 @@ three-column blocks. Rows with open work are shown in dark red; the `PMs` column
 data bars. A clustered column chart (**PMs by Sales Manager**, 900 x 280 pt) sits to the
 right, and a footnote names the source file and the prior file.
 
----
+______________________________________________________________________
 
 ## Manager tabs
 
@@ -141,14 +142,14 @@ right, and a footnote names the source file and the prior file.
 
 Every manager tab has the same anatomy, so a reader always knows where to look:
 
-| Rows | Content |
-|---|---|
-| 1 | Banner: manager name. |
-| 2-4 | Four KPI cards: **PMs Requested** (THIS WEEK), **Prior Report** (LAST WEEK), **Completed** (SINCE LAST WEEK), **New PMs** (ADDED). |
-| 5-7 | Full-width **PMs BY SALES REP** card: who is doing them, with prior counts. |
-| 8 | Spacer. |
-| 9 | Table header. |
-| 10+ | Data, with an AutoFilter and a frozen header row. |
+| Rows | Content                                                                                                                            |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | Banner: manager name.                                                                                                              |
+| 2-4  | Four KPI cards: **PMs Requested** (THIS WEEK), **Prior Report** (LAST WEEK), **Completed** (SINCE LAST WEEK), **New PMs** (ADDED). |
+| 5-7  | Full-width **PMs BY SALES REP** card: who is doing them, with prior counts.                                                        |
+| 8    | Spacer.                                                                                                                            |
+| 9    | Table header.                                                                                                                      |
+| 10+  | Data, with an AutoFilter and a frozen header row.                                                                                  |
 
 Formatting rules: per-employee alternating row banding (white / `RGB(238,241,245)`), rows
 for PMs who are new since the prior report in light green **and bold**
@@ -159,7 +160,7 @@ frozen header row, and landscape fit-to-one-page-wide printing with row 9 repeat
 Managers are sorted by **last name**, and both `Last, First` and `First Last` name formats
 are understood.
 
----
+______________________________________________________________________
 
 ## Prior-week comparison
 
@@ -173,7 +174,7 @@ Auto-detection looks for `PM Requests *.xlsx` in the remembered output folder an
 newest by name overlap. Reports stored elsewhere must be moved into that folder or passed
 explicitly by automation.
 
----
+______________________________________________________________________
 
 ## Source file requirements
 
@@ -194,7 +195,7 @@ Rows without a manager are counted in the run log (`skipped=0` on the test fixtu
 left out of every tab, KPI card and count; the completion message repeats the number so it
 is never silently lost. The fixture therefore produces **124 PMs across 12 managers**.
 
----
+______________________________________________________________________
 
 ## Logging and diagnosing a stuck run
 
@@ -245,41 +246,41 @@ The `/logs` slash command prints every run log oldest-first (newest at the botto
 table of the slowest steps across the last five runs. `/logs 20261113` narrows it to one
 day.
 
----
+______________________________________________________________________
 
 ## Repository layout
 
-| Path | Role |
-|---|---|
-| `PM_Requests_Master_Template.xlsm` | The master workbook: embedded VBA, `START HERE`, very-hidden `PM Settings`. This is what users open. |
-| `PM_Report_Macro.bas` | **Canonical VBA source.** The embedded module is synced from here; never edit the module inside the `.xlsm`. |
-| `AOTIOpsTreatmentPMDatesResults_FAKE.xlsx` | Synthetic export (124 rows, 12 managers) used for regression tests. |
-| `documentation/` | `AGENTS.md` (rules), `CHANGELOG.md`, `screenshots/`, logo art. |
-| `documentation/AGENTS.md` | The rules any agent or contributor must follow. |
-| `scripts/` | All tooling: PowerShell harnesses and two Python fixture generators. |
-| `Logs/` | One run log per build, plus the dialog watcher log. Safe to delete; not committed. |
-| `Reports/` | Generated reports. Not committed. |
-| `backups/` | At most two master snapshots, taken only when the module actually changes. |
-| `.kilo/command/` | `/logs` and `/audit` slash commands. |
+| Path                                       | Role                                                                                                         |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `PM_Requests_Master_Template.xlsm`         | The master workbook: embedded VBA, `START HERE`, very-hidden `PM Settings`. This is what users open.         |
+| `PM_Report_Macro.bas`                      | **Canonical VBA source.** The embedded module is synced from here; never edit the module inside the `.xlsm`. |
+| `AOTIOpsTreatmentPMDatesResults_FAKE.xlsx` | Synthetic export (124 rows, 12 managers) used for regression tests.                                          |
+| `documentation/`                           | `AGENTS.md` (rules), `CHANGELOG.md`, `screenshots/`, logo art.                                               |
+| `documentation/AGENTS.md`                  | The rules any agent or contributor must follow.                                                              |
+| `scripts/`                                 | All tooling: PowerShell harnesses and two Python fixture generators.                                         |
+| `Logs/`                                    | One run log per build, plus the dialog watcher log. Safe to delete; not committed.                           |
+| `Reports/`                                 | Generated reports. Not committed.                                                                            |
+| `backups/`                                 | At most two master snapshots, taken only when the module actually changes.                                   |
+| `.kilo/command/`                           | `/logs` and `/audit` slash commands.                                                                         |
 
 ### Scripts
 
-| Script | Purpose |
-|---|---|
-| `sync_template.py` | Imports the `.bas` into the master's VBA project and rebuilds `START HERE`. Run after every `.bas` change. Takes one backup first. |
-| `test-compile.py` | Compile gate: imports the `.bas` into a copy of the master, triggers **Debug > Compile VBAProject** (compiles *every* procedure), then runs an execution probe. `-SelfTest` proves the detector detects. |
-| `run-report.py` | Headless end-to-end build with the stall watchdog described above. |
-| `build-worker.py` | The headless worker `run-report.py` starts (one Excel instance, one `RunReport` call). |
-| `watch-compile-error.py` | Stands outside Excel, records and dismisses every modal dialog into `Logs\watcher.log`. |
-| `answer-dialogs.py` | Answers the real UI path's dialogs (source picker, output folder, final `MsgBox`) so the button can be exercised unattended. |
-| `audit-peer.py` | Read-only cross audit against the sibling project (see below). |
-| `snapshot-report.py` | Exports sheets as PNG images (these screenshots) for docs and design comparison. |
-| `dump-sheet.py` | Read-only structural dump of one sheet (merges, widths, heights, fonts, fills, shapes) for verifying layouts. |
-| `check-toc.py` | Verifies the MAP block at the top of `PM_Report_Macro.bas` (section start lines and procedure names) against the file. `-Fix` rewrites it. |
-| `make_fake_data.py` | Regenerates the synthetic export. |
-| `make_prior.py` | Builds a prior-week report for comparison tests. |
+| Script                   | Purpose                                                                                                                                                                                                  |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sync_template.py`       | Imports the `.bas` into the master's VBA project and rebuilds `START HERE`. Run after every `.bas` change. Takes one backup first.                                                                       |
+| `test-compile.py`        | Compile gate: imports the `.bas` into a copy of the master, triggers **Debug > Compile VBAProject** (compiles *every* procedure), then runs an execution probe. `-SelfTest` proves the detector detects. |
+| `run-report.py`          | Headless end-to-end build with the stall watchdog described above.                                                                                                                                       |
+| `build-worker.py`        | The headless worker `run-report.py` starts (one Excel instance, one `RunReport` call).                                                                                                                   |
+| `watch-compile-error.py` | Stands outside Excel, records and dismisses every modal dialog into `Logs\watcher.log`.                                                                                                                  |
+| `answer-dialogs.py`      | Answers the real UI path's dialogs (source picker, output folder, final `MsgBox`) so the button can be exercised unattended.                                                                             |
+| `audit-peer.py`          | Read-only cross audit against the sibling project (see below).                                                                                                                                           |
+| `snapshot-report.py`     | Exports sheets as PNG images (these screenshots) for docs and design comparison.                                                                                                                         |
+| `dump-sheet.py`          | Read-only structural dump of one sheet (merges, widths, heights, fonts, fills, shapes) for verifying layouts.                                                                                            |
+| `check-toc.py`           | Verifies the MAP block at the top of `PM_Report_Macro.bas` (section start lines and procedure names) against the file. `-Fix` rewrites it.                                                               |
+| `make_fake_data.py`      | Regenerates the synthetic export.                                                                                                                                                                        |
+| `make_prior.py`          | Builds a prior-week report for comparison tests.                                                                                                                                                         |
 
----
+______________________________________________________________________
 
 ## VBA architecture
 
@@ -287,19 +288,19 @@ All VBA lives in the single standard module **`PM_Report_Macro`** (`Option Expli
 throughout). Constants sit in the declarations section at the top of the module and define
 the file names, headers, and UI text - change those to rebrand.
 
-| Group | Members |
-|---|---|
-| Entry points | `BuildManagerTabs` (pipeline), `SetupReportButton`, `RebuildStartSheet` |
-| `START HERE` canvas | `GetOrCreateStartSheet`, `AddStartStep`, `AddStartBullet`, `PositionStartLogo` |
-| Pipeline | `RunReport`, `FindSourceWorksheet`, `FindHeaderRow`, `FindHeaderColumn`, `LoadSourceIntoRawData` |
-| Classification | `BuildOutputArray`, `SortManagersByLastName`, `LastNameKey`, `SafeSheetName` |
-| Prior comparison | `DetectPriorReport`, `PriorNameOverlap`, `SortPathsNewestFirst`, `LoadPriorComparison`, `PriorNameExists`, `NormalizeName`, `CountDiff` |
-| Dashboard | `BuildDashboard`, `AddManagerChart`, `WriteTableHeader`, `AddPolishedCard`, `AddPolishedTextCard`, `AddDashboardLogo` |
-| Manager formatting | `FormatManagerSheet`, `ApplyReaderFriendlyFormatting`, `CountInSheet` |
-| Output helpers | `GetUniqueOutputPath`, `GetRememberedOutputFolder`, `SaveOutputFolder`, `RestoreExcelState` |
-| Diagnostics | `LogOpen`, `LogLine`, `LogStage`, `LogPath`, `SetStatus` |
+| Group               | Members                                                                                                                                 |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Entry points        | `BuildManagerTabs` (pipeline), `SetupReportButton`, `RebuildStartSheet`                                                                 |
+| `START HERE` canvas | `GetOrCreateStartSheet`, `AddStartStep`, `AddStartBullet`, `PositionStartLogo`                                                          |
+| Pipeline            | `RunReport`, `FindSourceWorksheet`, `FindHeaderRow`, `FindHeaderColumn`, `LoadSourceIntoRawData`                                        |
+| Classification      | `BuildOutputArray`, `SortManagersByLastName`, `LastNameKey`, `SafeSheetName`                                                            |
+| Prior comparison    | `DetectPriorReport`, `PriorNameOverlap`, `SortPathsNewestFirst`, `LoadPriorComparison`, `PriorNameExists`, `NormalizeName`, `CountDiff` |
+| Dashboard           | `BuildDashboard`, `AddManagerChart`, `WriteTableHeader`, `AddPolishedCard`, `AddPolishedTextCard`, `AddDashboardLogo`                   |
+| Manager formatting  | `FormatManagerSheet`, `ApplyReaderFriendlyFormatting`, `CountInSheet`                                                                   |
+| Output helpers      | `GetUniqueOutputPath`, `GetRememberedOutputFolder`, `SaveOutputFolder`, `RestoreExcelState`                                             |
+| Diagnostics         | `LogOpen`, `LogLine`, `LogStage`, `LogPath`, `SetStatus`                                                                                |
 
----
+______________________________________________________________________
 
 ## Development: the mandatory loop
 
@@ -317,12 +318,11 @@ Expected result of step 3:
 RESULT=OK|C:\...\Reports\PM Requests 2026-11-14 (2).xlsx|124|0|PM Requests 2026-11-07.xlsx
 ```
 
-That is `OK | output path | PMs | skipped-without-manager | prior
-report`. Anything else is a bug.
+That is `OK | output path | PMs | skipped-without-manager | prior report`. Anything else is a bug.
 
 Then: read the log, kill any stray `EXCEL` process, and update `documentation/CHANGELOG.md`.
 
----
+______________________________________________________________________
 
 ## The compile gate
 
@@ -337,8 +337,8 @@ A pass requires three things, not one:
 
 1. the compile command was found and executed (it refuses to report "clean" if the control
    is missing or disabled),
-2. no error dialog appeared, and
-3. the execution probe ran and wrote its marker.
+1. no error dialog appeared, and
+1. the execution probe ran and wrote its marker.
 
 `watch-compile-error.py` runs alongside, polling every 100 ms, and writes each dialog's
 full text to `Logs\watcher.log` before dismissing it. `-SelfTest` injects a deliberately
@@ -346,22 +346,22 @@ broken procedure, asserts the gate **fails**, verifies the fixture really is in 
 removes it, and asserts the gate passes - because a fixture that was never saved once
 produced a false pass here.
 
----
+______________________________________________________________________
 
 ## Testing
 
-| Check | Command | Expected |
-|---|---|---|
-| Whole-project compile | `.\scripts\test-compile.py` | `RESULT: COMPILE OK` |
-| Detector self-test | `.\scripts\test-compile.py -SelfTest` | `SELFTEST: injected error detected as expected` |
-| End-to-end build | `.\scripts\run-report.py` | `RESULT=OK\|...\|124\|0\|<prior>` |
-| Visual regression | `.\scripts\snapshot-report.py` | PNGs in `documentation\screenshots\` |
+| Check                 | Command                               | Expected                                        |
+| --------------------- | ------------------------------------- | ----------------------------------------------- |
+| Whole-project compile | `.\scripts\test-compile.py`           | `RESULT: COMPILE OK`                            |
+| Detector self-test    | `.\scripts\test-compile.py -SelfTest` | `SELFTEST: injected error detected as expected` |
+| End-to-end build      | `.\scripts\run-report.py`             | `RESULT=OK\|...\|124\|0\|<prior>`               |
+| Visual regression     | `.\scripts\snapshot-report.py`        | PNGs in `documentation\screenshots\`            |
 
 The fixture is `AOTIOpsTreatmentPMDatesResults_FAKE.xlsx`: 124 rows, 12 managers, all 124
 counted as PMs. Build once, then `python scripts\make_prior.py` writes last week's report, and
 the next build reports `newPMs=36`.
 
----
+______________________________________________________________________
 
 ## Cross-project audit
 
@@ -384,22 +384,22 @@ The peer is auto-discovered (a sibling directory with a root `*.bas` and a `scri
 folder); `-PeerPath` overrides it. The same two files exist in the peer, so the audit runs
 correctly from either side. The audit never writes to either project.
 
----
+______________________________________________________________________
 
 ## Troubleshooting
 
-| Symptom | Cause / fix |
-|---|---|
-| "Could not find a worksheet containing both required headers" | The export lacks `Assigned Sales Manager` or `Treatment Status`, the header is below row 30, or the spelling/spacing differs. Fix the export. |
-| "The selected raw-data file has no data rows" | Header found, nothing below it. |
-| "The selected raw-data file is the PM Requests master workbook" | You picked the `.xlsm` itself. Pick the export. |
-| Button or macro does nothing | Macros are disabled. See [Quick start](#quick-start). |
-| Build hangs with no error | A modal dialog is waiting. Check `Logs\watcher.log` and the run log's last line. |
-| Wrong output folder | Clear `PM Settings!B2` (very-hidden sheet) and run again. |
-| Extra columns or blank rows in output | The macro uses the source's last used row/column; remove stray formatting or junk rows in the export. |
-| Report looks unformatted | Formatting runs under `On Error Resume Next`; check the run log for the `dashboard`/`manager tabs` stages. |
+| Symptom                                                         | Cause / fix                                                                                                                                   |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| "Could not find a worksheet containing both required headers"   | The export lacks `Assigned Sales Manager` or `Treatment Status`, the header is below row 30, or the spelling/spacing differs. Fix the export. |
+| "The selected raw-data file has no data rows"                   | Header found, nothing below it.                                                                                                               |
+| "The selected raw-data file is the PM Requests master workbook" | You picked the `.xlsm` itself. Pick the export.                                                                                               |
+| Button or macro does nothing                                    | Macros are disabled. See [Quick start](#quick-start).                                                                                         |
+| Build hangs with no error                                       | A modal dialog is waiting. Check `Logs\watcher.log` and the run log's last line.                                                              |
+| Wrong output folder                                             | Clear `PM Settings!B2` (very-hidden sheet) and run again.                                                                                     |
+| Extra columns or blank rows in output                           | The macro uses the source's last used row/column; remove stray formatting or junk rows in the export.                                         |
+| Report looks unformatted                                        | Formatting runs under `On Error Resume Next`; check the run log for the `dashboard`/`manager tabs` stages.                                    |
 
----
+______________________________________________________________________
 
 ## Known limitations
 
@@ -410,7 +410,7 @@ correctly from either side. The audit never writes to either project.
 - macOS has no folder picker: the output path is typed into an `InputBox`.
 - Rows with no Assigned Sales Manager are counted in the log but not reported in the workbook.
 
----
+______________________________________________________________________
 
 ## Changelog
 

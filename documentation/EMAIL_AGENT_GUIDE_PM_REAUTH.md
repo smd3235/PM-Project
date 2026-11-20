@@ -12,20 +12,21 @@ Reusable implementation guide for adding the Pending Pickup-style email workflow
 
 ## 2. Architecture Overview
 
-| Layer | Responsibility |
-|---|---|
-| **Hidden config sheets** (template) | User-editable TO/CC/SUBJECT/BODY; formatted UI, instructions, Return button |
-| **`modDeclarations.bas`** | Constants: sheet names, config cell addresses, default subjects/bodies, legacy fallback cells |
-| **`modDialog.bas`** (or email module) | Read config, setup/return subs, range capture, Outlook compose/paste, button handlers |
-| **Report builder (`modCore`/formatting)** | Create per-recipient and dashboard email buttons on generated report; set `AlternativeText` to target sheet name |
-| **`scripts/sync_template.py`** | Sync VBA into `.xlsm`, provision/format config sheets, migrate/preserve values, rebuild no-macro `.xlsx` + build ZIP |
-| **Run/watch tooling** | Optional: detect config changes and sync before runs / on save so artifacts stay matched |
+| Layer                                     | Responsibility                                                                                                       |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **Hidden config sheets** (template)       | User-editable TO/CC/SUBJECT/BODY; formatted UI, instructions, Return button                                          |
+| **`modDeclarations.bas`**                 | Constants: sheet names, config cell addresses, default subjects/bodies, legacy fallback cells                        |
+| **`modDialog.bas`** (or email module)     | Read config, setup/return subs, range capture, Outlook compose/paste, button handlers                                |
+| **Report builder (`modCore`/formatting)** | Create per-recipient and dashboard email buttons on generated report; set `AlternativeText` to target sheet name     |
+| **`scripts/sync_template.py`**            | Sync VBA into `.xlsm`, provision/format config sheets, migrate/preserve values, rebuild no-macro `.xlsx` + build ZIP |
+| **Run/watch tooling**                     | Optional: detect config changes and sync before runs / on save so artifacts stay matched                             |
 
 ## 3. Email Template Sheets (UI/Config)
 
 Create one hidden sheet per email context (examples: Manager, Director/Dashboard; PM/Re-Auth may differ).
 
 **Recommended layout (current standard):**
+
 - `D5` = **TO**
 - `D7` = **CC** (spacer row above for separation)
 - `D9` = **SUBJECT**
@@ -39,6 +40,7 @@ Create one hidden sheet per email context (examples: Manager, Director/Dashboard
 ## 4. `modDeclarations.bas` Constants
 
 Define per template:
+
 ```vb
 Public Const EMAIL_CONFIG_SHEET As String = "Manager Email Template" ' adjust per project
 Public Const EMAIL_CONFIG_TO_CELL As String = "D5"
@@ -50,6 +52,7 @@ Public Const EMAIL_CONFIG_BODY_CELL As String = "D11"
 Public Const EMAIL_SUBJECT_MANAGER As String = "..."  ' project-specific default
 Public Const EMAIL_SUBJECT_DIRECTOR As String = "..." ' project-specific default
 ```
+
 Keep names project-specific but consistent; document them.
 
 ## 5. VBA: Read, Setup, Return
@@ -68,21 +71,24 @@ Keep names project-specific but consistent; document them.
 ## 6. VBA: Compose & Send (Outlook)
 
 **Core pattern (reliable):**
+
 1. Determine target worksheet/range.
-2. `range.Copy` (preserve formatting).
-3. `CreateObject("Outlook.Application")` -> `CreateItem(0)`, set To/CC/Subject from readers.
-4. `.Display` + `DoEvents`, wait/retry for `GetInspector.WordEditor` (e.g. up to ~8s) — editor can be slow.
-5. Build body in Word range:
+1. `range.Copy` (preserve formatting).
+1. `CreateObject("Outlook.Application")` -> `CreateItem(0)`, set To/CC/Subject from readers.
+1. `.Display` + `DoEvents`, wait/retry for `GetInspector.WordEditor` (e.g. up to ~8s) — editor can be slow.
+1. Build body in Word range:
    - Greeting/intro text
    - Paste copied Excel range at insertion point
    - Closing/signature text
-6. Leave draft displayed for user review/send. Clear `Application.CutCopyMode` in cleanup. User-facing `MsgBox` + logging on failures.
+1. Leave draft displayed for user review/send. Clear `Application.CutCopyMode` in cleanup. User-facing `MsgBox` + logging on failures.
 
 **Range capture rules:**
+
 - **Manager/recipient tab:** copy the data region (e.g. header row to last used row/columns) — exclude UI buttons placed outside data columns.
 - **Dashboard/summary:** compute bounds including `UsedRange` and embedded `ChartObjects`/`Shapes` so charts are included.
 
 **Body/`{{REPORT}}` marker (recommended UX):**
+
 - Treat `{{REPORT}}` (or `{{TABLE}}`) in BODY as the paste location: text above = intro, below = closing.
 - If marker missing, define explicit fallback (e.g. treat body as intro, paste after, append default closing) and document it.
 - In Excel template cell, new lines via **Alt+Enter**; preserve line breaks when composing.

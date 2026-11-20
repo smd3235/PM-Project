@@ -6,6 +6,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
 ## 1.4
 
 ### 2026-11-17 22:49:53
+
 - Recovered `PM_Report_Macro.bas` and `PM_Requests_Master_Template_(No Macros).xlsx` from `Project-Local-Build.zip` after project corruption.
 - Broke `PM_Report_Macro.bas` into six modules by concern:
   `PM_Report_Macro` (shared declarations + run-log + RunReport), `PM_Report_UI`,
@@ -49,6 +50,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
   regenerated (`TOC OK: 10 sections, 67 procedures`).
 
 ### 2026-11-14 01:25:00
+
 - Dashboard and manager-tab layout fixes, from a review of a freshly built
   report (`Reports\PM Requests 2026-11-14 (9).xlsx`, 124 PMs / 12 managers).
   - **The chart no longer covers the footnote.** `AddManagerChart` placed the
@@ -77,6 +79,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
   (`TOC OK: 10 sections, 66 procedures`).
 
 ### 2026-11-14 01:10:00
+
 - `PM_Report_Macro.bas` is now organised like a documented module instead of one
   long file. Comment-only change: no procedure moved, no behaviour change.
   - A **MAP block** at the top lists all 10 sections with their start line and
@@ -100,6 +103,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
   drift for a deliberately wrong line number and passes on the real file.
 
 ### 2026-11-14 00:56:00
+
 - Added `scripts\dump-sheet.py`: read-only structural dump of one sheet (merged
   areas, column widths, row heights, per-cell font/fill/alignment, shape geometry),
   which is how a layout change gets verified without opening the workbook by hand.
@@ -109,6 +113,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
 - Documented in `README.md` and `documentation\AGENTS.md` (script lists).
 
 ### 2026-11-14 00:52:00
+
 - Stale references to the removed Pending Pickup feature cleaned out of the module: the
   three START HERE comments that described the canvas as "mirroring the sibling
   Pending Pickup builder" now describe the canvas in its own terms, and the tab-colour
@@ -121,6 +126,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
   import step and are left in place as history.
 
 ### 2026-11-14 00:50:00
+
 - Nothing in the project points outside the project folder any more.
   - `scripts\sync_template.py` saved the master through `%TEMP%` before swapping it in; it
     now saves to `Logs\_sync_<stamp>.xlsm` and deletes it after the swap. (A leftover
@@ -134,6 +140,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
     `Logs\`, output in `Reports\`, snapshots in `backups\`.
 
 ### 2026-11-14 00:35:00
+
 - Pending Pickup removed from this project entirely. It was a data filter, not a feature:
   `Treatment Status` still has to exist in the export and is still carried into the report,
   but nothing reads it any more. **Behaviour change:** a row with a manager is now always a
@@ -159,6 +166,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
   expected result is `RESULT=OK|...|124|0|<prior>`.
 
 ### 2026-11-14 00:20:00
+
 - Cleaned the last of the Pending Pickup feature out of the code and the docs. The
   feature was removed earlier; what was left was stale copy and vocabulary:
   - Module header: version bumped to v1.4, result-string contract corrected to
@@ -182,6 +190,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
   contains. Screenshots regenerated.
 
 ### 2026-11-14 07:15:00
+
 - Added a root `README.md`, because GitHub only renders a README that sits at the
   repository root: `documentation/README.md` was invisible on the repository page.
   The root file is now the canonical project README (contents, quick start, dashboard and
@@ -197,6 +206,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
   `report-alice-fontaine.png`, generated from the current template and the current build.
 
 ### 2026-11-13 23:57:00
+
 - `START HERE` redesigned to match the sibling Pending Pickup builder, with the
   PM-specific wording kept:
   - Column geometry is now the peer's (`B=5, C=28, D=28, E=28, F=2`) instead of
@@ -225,6 +235,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
 ## 1.3
 
 ### 2026-11-13 23:45:00
+
 - Cross-project audit added, read-only, in both directions:
   - `scripts\audit-peer.py` compares this project with the sibling
     `Pending Pickup Project`: files only one side has, files that differ (with
@@ -241,6 +252,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
     `README.md` row for the new script.
 
 ### 2026-11-13 23:35:00
+
 - Compile gate hardened, and made faster:
   - `-SelfTest` switch: injects a deliberately broken procedure, asserts the gate
     FAILS, verifies the fixture is really in the module (a fixture that was never
@@ -259,6 +271,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
   `KILO_CONFIG_DIR` is a machine env var, not something the repo can ship.
 
 ### 2026-11-13 23:30:00
+
 - Project layout aligned with the sibling Pending Pickup project:
   - Markdown and image assets moved to **`documentation/`** - `README.md`,
     `CHANGELOG.md`, `AGENTS.md`, `aoti-logo.png`, `aoti-logo-2023.svg`. A stub
@@ -275,6 +288,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
     without breaking older folders.
 
 ### 2026-11-13 23:20:00
+
 - Module renamed: the standard module is now **`PM_Report_Macro`**. VBA module
   identifiers cannot contain spaces (importing a module called `PM Report Macro`
   fails with "Not a legal object name"), so the file is `PM_Report_Macro.bas` -
@@ -335,6 +349,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
   (`AOTI_Logo` picture present in the generated `.xlsx`).
 
 ### 2026-11-13 15:00:00
+
 - Dashboard KPI cards no longer show nonsense without a prior report: with no
   comparison, "Completed" and "Prior PMs Still Open" are 0 instead of the full
   PM total (they are derived from prior minus retained, which is meaningless at
@@ -364,6 +379,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
   UI without running a report.
 
 ### 2026-11-13 14:45:00
+
 - Weekly mode finds the prior report itself. With no explicit prior, the builder
   scans the output folder for `PM Requests *.xlsx`, scores the six newest by
   name overlap with the current report, and compares against the newest high
@@ -396,6 +412,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
   inventory updated.
 
 ### 2026-11-13 13:55:00
+
 - The report is weekly, not monthly: banner/title/comments/README updated to
   "WEEKLY PM REQUEST REPORT" and weekly wording throughout the UI and docs.
 - Company logo added (`aoti-logo-2023.svg` supplied by the user; rasterized to
@@ -412,6 +429,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
   (`OK|...|106|18|0`, runs 9/10).
 
 ### 2026-11-13 13:50:00
+
 - Redesigned the START HERE tab (the template's first thing the user sees):
   navy 20pt banner, tagline, "HOW IT WORKS" 3-step list, light-blue button
   card with a centered 340x56 bold button, footer with the output filename,
@@ -422,6 +440,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
   headlessly). Regression after the redesign: `OK|...|106|18|0`.
 
 ### 2026-11-13 13:40:00
+
 - Fixed the START HERE button error "Cannot run the macro": the interactive
   shell procedure was named `CreateManagerTabs`, the same as its module.
   Excel's macro engine resolved the name to the module (not a runnable
@@ -432,14 +451,15 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
   instead of erroring immediately. README and this changelog updated.
 
 ### 2026-11-13 13:20:00
+
 - Post-port code review of the module (v1.2, 1202 lines) and fixes:
   1. Crash risk: `BuildDashboard` indexed the current data array with
      `nameCol` without checking it was found; a report without a `Name`
      column + a prior comparison would have raised "subscript out of range".
      Now guarded (`priorNames.Count > 0 And nameCol > 0`).
-  2. Dashboard with no prior showed a misleading "New PMs: 0" card; it now
+  1. Dashboard with no prior showed a misleading "New PMs: 0" card; it now
      shows a "Managers" count card instead.
-  3. The status bar kept "Step 1 of 3..." text when the user cancelled the
+  1. The status bar kept "Step 1 of 3..." text when the user cancelled the
      source/prior/folder dialogs; it is now reset on cancel.
 - Output folder preset: the remembered folder in `PM Settings!B2` was the old
   work path on another machine; it is now `<project>\Reports`. Set by a direct XML edit of
@@ -450,6 +470,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
 - Regression re-run after the fixes: `OK|...|106|18|0` with and without prior.
 
 ### 2026-11-13 13:10:00
+
 - Cleanup after the compare port: removed the stale LibreOffice lock file
   (`.~lock.AOTIOpsTreatmentPMDatesResults_FAKE.xlsx#`), the superseded
   `src/CreateManagerTabs_trace.bas` (LO-trace scaffolding), the original tiny
@@ -459,6 +480,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
   feature is ported and verified; the live 2.0.18 build at work is untouched).
 
 ### 2026-11-13 13:03:29
+
 - Ported the prior-report comparison feature from the 2.0.18 work build into the
   1.x module (Excel-only runtime):
   - The interactive shell now asks for the prior PM Requests report after the
@@ -484,6 +506,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
     correct. Excel-only validation: headless LibreOffice is no longer used.
 
 ### 2026-11-13 12:30:00
+
 - Removed all LibreOffice/UNO scaffolding from the module (headless LO could not
   open the report workbooks; Excel 16.0 is now available for testing): dropped
   the Trace/SelfTest/IsExcelHost helpers, `SetStatus` host guard,
@@ -505,22 +528,24 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
 ## 1.0
 
 ### 2026-11-13 11:45:18
+
 - Second review pass found six issues in the optimized module; all fixed and
   re-applied to the master (backup in `backups/`, analysis 0 errors / 0
   warnings, oletools extraction matches the canonical source, workbook opens
   cleanly; XLIDE review pending in the tree):
   1. Pending Pickup tab with zero rows now gets the full header styling
      (borders, navy header, AutoFilter, frozen row) instead of a bare header.
-  2. The master is now saved immediately after a new output folder is chosen,
+  1. The master is now saved immediately after a new output folder is chosen,
      so the remembered folder survives closing without a save prompt.
-  3. Removed the unused `lastSourceCol` parameter from `FormatManagerSheet`.
-  4. PMs Needed box no longer overrides the 34pt header row height (rows 2:3
+  1. Removed the unused `lastSourceCol` parameter from `FormatManagerSheet`.
+  1. PMs Needed box no longer overrides the 34pt header row height (rows 2:3
      only).
-  5. Freeze-panes is guarded against a missing window (safe under automation).
-  6. Trailing path separators are stripped from output-folder paths
+  1. Freeze-panes is guarded against a missing window (safe under automation).
+  1. Trailing path separators are stripped from output-folder paths
      (new `NormalizeFolder`; prevents double-separator paths).
 
 ### 2026-11-13 11:42:02
+
 - Applied the optimized module to the master `PM_Requests_Master_Template.xlsm`
   through the xlide-mcp server code path (pyopenvba; content-token guarded;
   backups in `backups/`).
@@ -535,6 +560,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
   (no Excel on this machine).
 
 ### 2026-11-13 11:38:43
+
 - Toolchain established for working on the project without Excel on this machine:
   XLIDE (VS Code extension) for editing the VBA embedded in the `.xlsm` directly,
   Python/oletools for extraction and verification, openpyxl for report
@@ -544,6 +570,7 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
   module with oletools.
 
 ### 2026-11-13 11:36:25
+
 - Code review of the VBA module completed. Issues found:
   - **Null crash (error 94):** `CStr()` on empty cells in the classification
     loop and `FindHeaderColumn` — any blank manager/status cell or blank header
@@ -569,12 +596,14 @@ Timestamps use `YYYY-MM-DD HH:MM:SS` format.
   remove module > File > Import File), then save.
 
 ### 2026-11-13 11:33:34
+
 - Established project version **1.0** (baseline carried over from the original v2.0.22 distribution; no version bumps planned — changes are tracked here).
 - Overhauled the readme: replaced `README_PM_Requests_v2.0.22.txt` with `README.md` (overview, business rules, setup, monthly workflow, output spec, troubleshooting, architecture notes).
 - Renamed the master workbook: `PM_Requests_Master_Template_v2.0.22_CLEAN.xlsm` → `PM_Requests_Master_Template.xlsm` (no code changes).
 - Added this changelog.
 
 ### 2026-11-13 11:31:00
+
 - Validated the master `.xlsm` package (opens cleanly).
 - Verified the full report pipeline against the sample raw data (`AOTIOpsTreatmentPMDatesResults820.xlsx`, fake data) with a faithful algorithm simulation — all business rules pass (manager tabs sorted by last name, PMs Needed = row count, Pending Pickup tab last in red, frozen headers, filters, banding, unique output filename).
 - Open issue: date columns render as Excel serial numbers (e.g. `46003` instead of `2025-12-12`) in generated reports, because only header-row formats are copied from the source. Fix pending.

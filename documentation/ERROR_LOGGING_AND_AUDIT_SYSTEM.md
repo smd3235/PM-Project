@@ -8,7 +8,7 @@ another project can adopt the same patterns.
 > Every run leaves a timestamped breadcrumb trail so a hang or crash can be diagnosed
 > from the last line written, not from a screenshot.
 
----
+______________________________________________________________________
 
 ## Contents
 
@@ -24,20 +24,20 @@ another project can adopt the same patterns.
 - [10. Copy-paste starter kit](#10-copy-paste-starter-kit)
 - [11. Cross-project adaptation checklist](#11-cross-project-adaptation-checklist)
 
----
+______________________________________________________________________
 
 ## 1. Design principles
 
-| Principle | How it's implemented |
-|-----------|---------------------|
-| **No silent failures** | Every procedure that touches the Excel object model has `On Error GoTo LocalFail` and calls `LogErr` before exiting on error. |
-| **Errors logged to file** | `LogErr` writes `timestamp | ERR | procedure | #Err.Number | Err.Description | line Erl` to both a global debug log and the current per-run log. |
-| **No modal dialogs in automation** | Error handlers log instead of `MsgBox` (user-facing buttons are the exception, not the rule). |
-| **Realtime breadcrumbs** | Stage labels (`stage = "dashboard": LogStage "dashboard"`) plus per-item progress lines (`manager tab 9/12: Derek Owens (10 rows)`). |
-| **Whole-project compile gate** | VBA compiles one procedure at a time; `test-compile.py` triggers real `Debug > Compile VBAProject` so uncalled procedures with typos are caught. |
-| **Persistent compile-error record** | Failed gates write to `Logs\compile-errors.log` with module, line, token, and line text. |
+| Principle                           | How it's implemented                                                                                                                             |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **No silent failures**              | Every procedure that touches the Excel object model has `On Error GoTo LocalFail` and calls `LogErr` before exiting on error.                    |
+| **Errors logged to file**           | `LogErr` writes \`timestamp                                                                                                                      |
+| **No modal dialogs in automation**  | Error handlers log instead of `MsgBox` (user-facing buttons are the exception, not the rule).                                                    |
+| **Realtime breadcrumbs**            | Stage labels (`stage = "dashboard": LogStage "dashboard"`) plus per-item progress lines (`manager tab 9/12: Derek Owens (10 rows)`).             |
+| **Whole-project compile gate**      | VBA compiles one procedure at a time; `test-compile.py` triggers real `Debug > Compile VBAProject` so uncalled procedures with typos are caught. |
+| **Persistent compile-error record** | Failed gates write to `Logs\compile-errors.log` with module, line, token, and line text.                                                         |
 
----
+______________________________________________________________________
 
 ## 2. Module-level state
 
@@ -55,7 +55,7 @@ Private mRunLogPath As String
 Private mDebugLogPath As String
 ```
 
----
+______________________________________________________________________
 
 ## 3. The `LocalFail` error-handling pattern
 
@@ -82,12 +82,12 @@ End Sub
 
 ### Rules
 
-| Rule | Reason |
-|------|--------|
-| `Exit Sub` / `Exit Function` **before** `LocalFail:` | The label only runs on errors; normal execution never falls into it. |
-| Call `LogErr "<ProcedureName>"` in `LocalFail` | Captures procedure name, `Err.Number`, `Err.Description`, and `Erl` (line number). |
-| Do **not** route expected "not found" lookups to `LocalFail` | `SheetExists`, `GetRememberedOutputFolder`, etc. keep `On Error Resume Next` around the lookup — that error is normal, not exceptional. |
-| Capture `Err.Number`/`Err.Description`/`Erl` **before** any cleanup | Cleanup statements (`Close`, `Quit`, `Set ws = Nothing`) can clobber `Err`. |
+| Rule                                                                | Reason                                                                                                                                  |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `Exit Sub` / `Exit Function` **before** `LocalFail:`                | The label only runs on errors; normal execution never falls into it.                                                                    |
+| Call `LogErr "<ProcedureName>"` in `LocalFail`                      | Captures procedure name, `Err.Number`, `Err.Description`, and `Erl` (line number).                                                      |
+| Do **not** route expected "not found" lookups to `LocalFail`        | `SheetExists`, `GetRememberedOutputFolder`, etc. keep `On Error Resume Next` around the lookup — that error is normal, not exceptional. |
+| Capture `Err.Number`/`Err.Description`/`Erl` **before** any cleanup | Cleanup statements (`Close`, `Quit`, `Set ws = Nothing`) can clobber `Err`.                                                             |
 
 ### Which procedures get it (PM Project example)
 
@@ -112,7 +112,7 @@ Manager formatting    : FormatManagerSheet, CountInSheet,
                         ApplyReaderFriendlyFormatting, ColorReportTabs
 ```
 
----
+______________________________________________________________________
 
 ## 4. The `LogErr` + `DebugWriteLine` helpers
 
@@ -170,7 +170,7 @@ End Sub
 - **Per-run logging is gated** by `mInReportRun` — set `True` at the start of your build, `False` on both success and error paths. Outside a build, errors only hit the global log.
 - `DebugWriteLine` is defensive: `On Error Resume Next` around file I/O so a logging failure can never mask the original error.
 
----
+______________________________________________________________________
 
 ## 5. Wiring into your entry point
 
@@ -220,7 +220,7 @@ Fail:
 End Function
 ```
 
----
+______________________________________________________________________
 
 ## 6. Realtime stage tracking & breadcrumbs
 
@@ -261,7 +261,7 @@ Next i
 
 **Why this matters:** every log line is `yyyy-MM-dd hh:mm:ss  +<ms>ms  message`. A hang is one line followed by silence — and the line *before* the silence is the step that hung.
 
----
+______________________________________________________________________
 
 ## 7. Audit counters (data-quality checks)
 
@@ -293,7 +293,7 @@ LogLine "classified: managers=" & CStr(mgrNames.Count) & _
 
 All zeros means clean data; anything above zero is a data-quality issue to review.
 
----
+______________________________________________________________________
 
 ## 8. Compile gate enhancements
 
@@ -304,14 +304,15 @@ Excel's compile-on-demand means **running a procedure does not compile its neigh
 ### `scripts\test-compile.py`
 
 The gate:
+
 1. Copies the master `.xlsm` to `Logs\_compile_test.xlsm` (master never touched).
-2. Starts a dialog watcher (`watch-compile-error.py`) that records and dismisses every modal dialog to `Logs\watcher.log`.
-3. Imports your `.bas` into the copy (tests the source, not the embedded module).
-4. Triggers real **Debug > Compile VBAProject** (VBE command bar, Debug menu, control id `578`).
-5. Polls the watcher log for compile-error dialog text.
-6. On failure, asks the VBE for the exact offending token: `module=<name> line=<n> token=[<text>] lineText=<full line>`.
-7. Runs an execution probe to prove the module still runs, not just parses.
-8. Writes verdict: `COMPILE OK`, `COMPILE FAILED`, `PROBE FAILED`, or `INCONCLUSIVE`.
+1. Starts a dialog watcher (`watch-compile-error.py`) that records and dismisses every modal dialog to `Logs\watcher.log`.
+1. Imports your `.bas` into the copy (tests the source, not the embedded module).
+1. Triggers real **Debug > Compile VBAProject** (VBE command bar, Debug menu, control id `578`).
+1. Polls the watcher log for compile-error dialog text.
+1. On failure, asks the VBE for the exact offending token: `module=<name> line=<n> token=[<text>] lineText=<full line>`.
+1. Runs an execution probe to prove the module still runs, not just parses.
+1. Writes verdict: `COMPILE OK`, `COMPILE FAILED`, `PROBE FAILED`, or `INCONCLUSIVE`.
 
 ### Persistent compile-error log
 
@@ -334,7 +335,7 @@ if ($compileError) {
 
 `test-compile.py -SelfTest` injects a deliberately broken procedure, asserts the gate **fails**, verifies the fixture is really in the module, removes it, and asserts the gate passes — proving the detector actually detects.
 
----
+______________________________________________________________________
 
 ## 9. Example log output
 
@@ -373,7 +374,7 @@ Accumulates across every run — one place to check for historical errors.
 2026-11-15 18:59:15 | COMPILE FAILED - the project does not compile | module=PM_Report_Macro line=123 token=[UndefinedName] lineText=x = UndefinedName
 ```
 
----
+______________________________________________________________________
 
 ## 10. Copy-paste starter kit
 
@@ -440,7 +441,7 @@ LocalFail:
 End Sub
 ```
 
----
+______________________________________________________________________
 
 ## 11. Cross-project adaptation checklist
 
@@ -457,6 +458,6 @@ End Sub
 - [ ] Run `test-compile.py -SelfTest` to prove the detector detects.
 - [ ] Run your build end-to-end and verify no unexpected `ERR` lines appear.
 
----
+______________________________________________________________________
 
 *Adapted from the PM Requests Report Builder (`PM_Report_Macro.bas`). The same two files exist in the peer project, so this guide runs correctly from either side.*
