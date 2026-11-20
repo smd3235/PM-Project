@@ -42,8 +42,7 @@ def main():
     log(f"mdformat version: {result.stdout.strip()}")
 
     cmd = ["python", "-m", "mdformat", "documentation/", "README.md", "documentation/AGENTS.md"]
-    if not args.fix:
-        cmd.append("--check")
+    # Always fix formatting automatically
 
     print(f"Running: {' '.join(cmd)}")
     result = subprocess.run(cmd, cwd=project_root, capture_output=True, text=True)
